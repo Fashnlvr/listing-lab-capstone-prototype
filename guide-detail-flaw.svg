@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 300" role="img" aria-labelledby="title desc">
+  <title id="title">Detail or Flaw Photo Guide</title>
+  <desc id="desc">Black and white guide showing zoomed detail and highlighted flaw area.</desc>
+  <rect x="1" y="1" width="418" height="298" fill="#fff" stroke="#212529" stroke-width="2"/>
+  <rect x="52" y="44" width="316" height="212" fill="none" stroke="#212529" stroke-dasharray="8 6" stroke-width="2"/>
+  <circle cx="210" cy="150" r="62" fill="none" stroke="#212529" stroke-width="3"/>
+  <circle cx="234" cy="132" r="10" fill="none" stroke="#212529" stroke-width="3"/>
+  <line x1="288" y1="96" x2="350" y2="58" stroke="#212529" stroke-width="2"/>
+  <polygon points="350,58 336,58 344,70" fill="#212529"/>
+  <text x="354" y="54" font-size="13" fill="#212529" font-family="Arial, sans-serif">Highlight flaw</text>
+  <text x="210" y="26" text-anchor="middle" font-size="16" fill="#212529" font-family="Arial, sans-serif">Zoom into wear, defects, or key details</text>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 300" role="img" aria-labelledby="title desc">
+  <title id="title">Photo 1 Guide</title>
+  <desc id="desc">Simple black and white guideline for first listing photo.</desc>
+  <rect x="1" y="1" width="418" height="298" fill="#fff" stroke="#212529" stroke-width="2"/>
+  <text x="210" y="42" text-anchor="middle" font-size="22" fill="#212529" font-family="Arial, sans-serif">PHOTO 1</text>
+  <text x="210" y="66" text-anchor="middle" font-size="14" fill="#212529" font-family="Arial, sans-serif">Main item view</text>
+  <rect x="56" y="82" width="308" height="190" fill="none" stroke="#212529" stroke-dasharray="8 6" stroke-width="2"/>
+  <path d="M146 244v-84c0-20 16-36 36-36h56c20 0 36 16 36 36v84" fill="none" stroke="#212529" stroke-width="4"/>
+  <path d="M182 124l-28 24-30-34 38-28 20 24" fill="none" stroke="#212529" stroke-width="4"/>
+  <path d="M238 124l28 24 30-34-38-28-20 24" fill="none" stroke="#212529" stroke-width="4"/>
+</svg>

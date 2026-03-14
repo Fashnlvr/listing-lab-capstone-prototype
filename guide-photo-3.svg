@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 300" role="img" aria-labelledby="title desc">
+  <title id="title">Photo 3 Guide</title>
+  <desc id="desc">Simple black and white guideline for third listing photo.</desc>
+  <rect x="1" y="1" width="418" height="298" fill="#fff" stroke="#212529" stroke-width="2"/>
+  <text x="210" y="42" text-anchor="middle" font-size="22" fill="#212529" font-family="Arial, sans-serif">PHOTO 3</text>
+  <text x="210" y="66" text-anchor="middle" font-size="14" fill="#212529" font-family="Arial, sans-serif">Detail or flaw close-up</text>
+  <rect x="62" y="82" width="296" height="188" fill="none" stroke="#212529" stroke-dasharray="8 6" stroke-width="2"/>
+  <circle cx="210" cy="174" r="62" fill="none" stroke="#212529" stroke-width="3"/>
+  <circle cx="234" cy="158" r="10" fill="none" stroke="#212529" stroke-width="3"/>
+  <line x1="290" y1="116" x2="350" y2="86" stroke="#212529" stroke-width="2"/>
+  <polygon points="350,86 338,84 345,95" fill="#212529"/>
+</svg>

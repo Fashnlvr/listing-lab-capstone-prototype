@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard | Listing Lab</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+
+  <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
+    <div class="container">
+      <a class="navbar-brand fw-semibold" href="index.html">Listing Lab</a>
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#primaryNav"
+        aria-controls="primaryNav"
+        aria-expanded="false"
+        aria-label="Toggle navigation"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="primaryNav">
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="dashboard.html">Dashboard</a></li>
+          <li class="nav-item"><a class="nav-link" href="new-listing.html">Create Listing</a></li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle menu-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Open menu" title="Menu">&#9776;</a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="about.html">About</a></li>
+              <li><a class="dropdown-item" href="features.html">Features</a></li>
+              <li><a class="dropdown-item" href="how-it-works.html">How It Works</a></li>
+              <li><a class="dropdown-item" href="pricing.html">Pricing</a></li>
+              <li><a class="dropdown-item" href="templates.html">Templates</a></li>
+              <li><a class="dropdown-item" href="integrations.html">Integrations</a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main-content" class="container py-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+      <h1 class="h3 mb-0">Saved Listings</h1>
+      <div class="d-flex flex-wrap gap-2">
+        <button id="exportBtn" class="btn btn-dark" type="button">Export CSV</button>
+        <button id="exportJsonBtn" class="btn btn-outline-secondary" type="button">Export JSON</button>
+        <button id="exportSelectedBtn" class="btn btn-outline-secondary" type="button">Export Selected CSV</button>
+        <button id="exportSelectedJsonBtn" class="btn btn-outline-secondary" type="button">Export Selected JSON</button>
+        <a class="btn btn-outline-secondary" href="new-listing.html">Create Listing</a>
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+      <div>
+        <label class="form-label mb-1" for="statusFilter">Filter Status</label>
+        <select class="form-select" id="statusFilter">
+          <option value="all">All Statuses</option>
+          <option value="draft">Draft</option>
+          <option value="ready">Ready</option>
+          <option value="listed">Listed</option>
+          <option value="sold">Sold</option>
+        </select>
+      </div>
+    </div>
+
+    <p id="dashboardStatus" class="small text-secondary" role="status" aria-live="polite"></p>
+    <p id="emptyState" class="text-secondary"></p>
+
+    <div class="table-responsive">
+      <table class="table table-striped table-hover align-middle">
+        <caption class="visually-hidden">Saved listings with details and actions</caption>
+        <thead>
+          <tr>
+            <th scope="col"><input id="selectAllListings" class="form-check-input" type="checkbox" aria-label="Select all listings" /></th>
+            <th scope="col">Title</th>
+            <th scope="col">Brand</th>
+            <th scope="col">Category</th>
+            <th scope="col">Condition</th>
+            <th scope="col">Status</th>
+            <th scope="col">Price</th>
+            <th scope="col">Created</th>
+            <th scope="col">Action</th>
+          </tr>
+        </thead>
+        <tbody id="listingsTableBody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <footer class="border-top bg-white py-4 mt-4">
+    <div class="container">
+      <div class="row g-4">
+        <div class="col-12 col-lg-4">
+          <p class="fw-semibold mb-1">Listing Lab</p>
+          <p class="small text-secondary mb-0">A complete pre-listing workflow for resellers to price, write, and organize listings faster.</p>
+          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Get Started</a>
+        </div>
+        <div class="col-6 col-lg-2">
+          <p class="small text-uppercase text-secondary mb-2">Product</p>
+          <ul class="list-unstyled mb-0">
+            <li><a href="new-listing.html">Create Listing</a></li>
+            <li><a href="dashboard.html">Dashboard</a></li>
+            <li><a href="pricing.html">Pricing Calculator</a></li>
+          </ul>
+        </div>
+        <div class="col-6 col-lg-2">
+          <p class="small text-uppercase text-secondary mb-2">Tools</p>
+          <ul class="list-unstyled mb-0">
+            <li><a href="templates.html">Smart Templates</a></li>
+            <li><a href="integrations.html">Integrations</a></li>
+            <li><a href="listing.html">Listing Detail</a></li>
+          </ul>
+        </div>
+        <div class="col-6 col-lg-2">
+          <p class="small text-uppercase text-secondary mb-2">Learn</p>
+          <ul class="list-unstyled mb-0">
+            <li><a href="about.html">About</a></li>
+            <li><a href="features.html">Features</a></li>
+            <li><a href="how-it-works.html">How It Works</a></li>
+          </ul>
+        </div>
+        <div class="col-6 col-lg-2">
+          <p class="small text-uppercase text-secondary mb-2">Contact Us</p>
+          <ul class="list-unstyled mb-0">
+            <li><a href="mailto:support@listinglab.com">support@listinglab.com</a></li>
+            <li class="fs-4" aria-label="Social media icons (not linked)"><span class="me-3" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></span><span class="me-3" title="TikTok" aria-label="TikTok"><i class="bi bi-tiktok"></i></span><span title="Pinterest" aria-label="Pinterest"><i class="bi bi-pinterest"></i></span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+    crossorigin="anonymous"
+  ></script>
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

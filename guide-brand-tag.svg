@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 300" role="img" aria-labelledby="title desc">
+  <title id="title">Brand Tag Photo Guide</title>
+  <desc id="desc">Black and white guide showing close-up of brand and size labels.</desc>
+  <rect x="1" y="1" width="418" height="298" fill="#fff" stroke="#212529" stroke-width="2"/>
+  <rect x="72" y="56" width="276" height="188" rx="10" fill="none" stroke="#212529" stroke-width="3"/>
+  <rect x="102" y="86" width="216" height="58" fill="none" stroke="#212529" stroke-width="2"/>
+  <rect x="102" y="156" width="98" height="40" fill="none" stroke="#212529" stroke-width="2"/>
+  <rect x="220" y="156" width="98" height="40" fill="none" stroke="#212529" stroke-width="2"/>
+  <text x="210" y="26" text-anchor="middle" font-size="16" fill="#212529" font-family="Arial, sans-serif">Capture brand + size labels clearly</text>
+  <text x="210" y="122" text-anchor="middle" font-size="14" fill="#212529" font-family="Arial, sans-serif">Brand tag</text>
+  <text x="151" y="182" text-anchor="middle" font-size="13" fill="#212529" font-family="Arial, sans-serif">Size</text>
+  <text x="269" y="182" text-anchor="middle" font-size="13" fill="#212529" font-family="Arial, sans-serif">Material</text>
+</svg>

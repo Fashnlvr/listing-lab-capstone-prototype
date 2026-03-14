@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Create Listing | Listing Lab</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+
+  <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
+    <div class="container">
+      <a class="navbar-brand fw-semibold" href="index.html">Listing Lab</a>
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#primaryNav"
+        aria-controls="primaryNav"
+        aria-expanded="false"
+        aria-label="Toggle navigation"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="primaryNav">
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="new-listing.html">Create Listing</a></li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle menu-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Open menu" title="Menu">&#9776;</a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="about.html">About</a></li>
+              <li><a class="dropdown-item" href="features.html">Features</a></li>
+              <li><a class="dropdown-item" href="how-it-works.html">How It Works</a></li>
+              <li><a class="dropdown-item" href="pricing.html">Pricing</a></li>
+              <li><a class="dropdown-item" href="templates.html">Templates</a></li>
+              <li><a class="dropdown-item" href="integrations.html">Integrations</a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main-content" class="container py-4">
+    <div class="row g-4">
+      <section class="col-12 col-xl-7 d-flex">
+        <div class="card h-100 w-100">
+          <div class="card-body">
+            <h1 class="h4 mb-3">Create Listing</h1>
+            <p class="small text-secondary">Completeness: <span id="completenessText">0/5</span></p>
+            <div id="completenessBarTrack" class="progress mb-2" role="progressbar" aria-label="Completeness progress">
+              <div id="completenessBar" class="progress-bar" style="width: 0%;">0%</div>
+            </div>
+            <p id="formError" class="text-danger fw-semibold mb-2" role="alert"></p>
+            <p id="formStatus" class="small text-secondary mb-3" role="status" aria-live="polite"></p>
+
+            <form id="listingForm" novalidate>
+              <div class="mb-3">
+                <label class="form-label" for="itemName">Item Name <span class="text-danger">*</span></label>
+                <input class="form-control" name="itemName" id="itemName" placeholder="What is the exact item name? Include style if known." required />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="brand">Brand <span class="text-danger">*</span></label>
+                <input class="form-control" name="brand" id="brand" placeholder="Who made it? (e.g., Nike, Zara, Coach)" required />
+              </div>
+
+              <div class="row g-3 mb-3">
+                <div class="col-12 col-md-6">
+                  <label class="form-label" for="category">Category <span class="text-danger">*</span></label>
+                  <select class="form-select" name="category" id="category" required>
+                    <option value="">Choose the item type</option>
+                    <option value="tops">Tops</option>
+                    <option value="bottoms">Bottoms</option>
+                    <option value="dresses">Dresses</option>
+                    <option value="shoes">Shoes</option>
+                    <option value="bags">Bags</option>
+                    <option value="outerwear">Outerwear</option>
+                  </select>
+                </div>
+                <div class="col-12 col-md-6">
+                  <label class="form-label" for="condition">Condition <span class="text-danger">*</span></label>
+                  <select class="form-select" name="condition" id="condition" required>
+                    <option value="">Choose current condition</option>
+                    <option value="new">New</option>
+                    <option value="like-new">Like New</option>
+                    <option value="good">Good</option>
+                    <option value="fair">Fair</option>
+                  </select>
+                  <div class="form-text mt-2">
+                    <div class="row g-2">
+                      <div class="col-6 col-xl-3">
+                        <span class="badge text-bg-light border py-2 w-100" data-bs-toggle="tooltip" data-bs-title="Never worn/used, original tags or packaging included.">New</span>
+                      </div>
+                      <div class="col-6 col-xl-3">
+                        <span class="badge text-bg-light border py-2 w-100" data-bs-toggle="tooltip" data-bs-title="Minimal signs of use, no visible flaws in normal lighting.">Like New</span>
+                      </div>
+                      <div class="col-6 col-xl-3">
+                        <span class="badge text-bg-light border py-2 w-100" data-bs-toggle="tooltip" data-bs-title="Normal wear present, fully functional, flaws should be disclosed.">Good</span>
+                      </div>
+                      <div class="col-6 col-xl-3">
+                        <span class="badge text-bg-light border py-2 w-100" data-bs-toggle="tooltip" data-bs-title="Noticeable wear or defects, still usable, issues must be clearly described.">Fair</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="templateSelect">Templates</label>
+                <div class="row g-2 mb-2">
+                  <div class="col-12 col-lg-6">
+                    <select class="form-select" id="templateSelect">
+                      <option value="">Choose template</option>
+                    </select>
+                  </div>
+                  <div class="col-12 col-lg-6">
+                    <div class="d-flex flex-wrap gap-2">
+                      <button class="btn btn-outline-secondary btn-sm" type="button" id="applyTemplateBtn">Apply Template</button>
+                      <button
+                        class="btn btn-outline-secondary btn-sm"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#templateTools"
+                        aria-expanded="false"
+                        aria-controls="templateTools"
+                      >
+                        Template Editor
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="collapse" id="templateTools">
+                  <div class="card bg-light border-0">
+                    <div class="card-body py-2">
+                      <div class="row g-2 mb-2">
+                        <div class="col-12 col-lg-6">
+                          <label class="form-label" for="templateName">Template Name</label>
+                          <input class="form-control" id="templateName" placeholder="e.g., Women Shoes Standard" />
+                        </div>
+                        <div class="col-12 col-lg-6">
+                          <label class="form-label" for="templateTitlePattern">Title Pattern</label>
+                          <input class="form-control" id="templateTitlePattern" placeholder="{brand} {itemName} {category}" />
+                        </div>
+                      </div>
+                      <div class="row g-2 mb-2">
+                        <div class="col-12 col-lg-6">
+                          <label class="form-label" for="templateDescription">Description</label>
+                          <textarea class="form-control" id="templateDescription" rows="2" placeholder="Condition details, flaws, what's included."></textarea>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                          <label class="form-label" for="templateShippingNotes">Shipping Notes</label>
+                          <textarea class="form-control" id="templateShippingNotes" rows="2" placeholder="Ships next business day with tracking."></textarea>
+                        </div>
+                      </div>
+                      <div class="mb-2">
+                        <label class="form-label" for="templateKeywords">Template Keywords</label>
+                        <input class="form-control" id="templateKeywords" placeholder="comma,separated,keywords" />
+                      </div>
+                      <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" id="saveTemplateBtn">Save</button>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" id="deleteTemplateBtn">Delete</button>
+                      </div>
+                      <p id="templateStatus" class="small text-secondary mt-2 mb-0" role="status" aria-live="polite"></p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="price">Price <span class="text-danger">*</span></label>
+                <input class="form-control" name="price" id="price" type="number" min="0" step="0.01" placeholder="Enter your listing price (e.g., 34.99)" required />
+                <div class="form-text">
+                  Suggested Range: <span id="suggestedRange">-</span>
+                  <span id="priceCheck" class="ms-1"></span>
+                </div>
+              </div>
+
+              <div class="card bg-light border-0 mb-3">
+                <div class="card-body py-3">
+                  <p class="small text-secondary mb-2">
+                    Formula Pricing Helper: uses category, condition, and brand to suggest a practical range.
+                  </p>
+                  <div class="row g-2 mb-3">
+                    <div class="col-12 col-lg-4 d-grid">
+                      <button class="btn btn-outline-secondary h-100" id="applyFormulaPriceBtn" type="button">Apply Formula Price</button>
+                    </div>
+                    <div class="col-12 col-lg-4 d-grid">
+                      <button class="btn btn-outline-secondary h-100" id="runCompSearchBtn" type="button">Search eBay Comps</button>
+                    </div>
+                    <div class="col-12 col-lg-4 d-grid">
+                      <button class="btn btn-outline-secondary h-100" id="applyCompPriceBtn" type="button">Apply Comp Price</button>
+                    </div>
+                  </div>
+                  <p id="formulaStatus" class="small text-secondary mt-2 mb-2" role="status" aria-live="polite"></p>
+                  <p id="formulaSummary" class="small mb-2"></p>
+                  <p id="compStatus" class="small text-secondary mt-2 mb-2" role="status" aria-live="polite"></p>
+                  <p id="compSummary" class="small mb-2"></p>
+                  <div id="compResults" class="d-grid gap-2"></div>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="notes">Description</label>
+                <textarea class="form-control" name="notes" id="notes" rows="3" placeholder="Add condition notes, measurements, materials, flaws, and shipping details."></textarea>
+                <p class="form-text mb-1">Measurements are strongly preferred for all listings.</p>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                  <button class="btn btn-outline-secondary btn-sm" type="button" id="generateDescriptionBtn">Generate Description</button>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="keywords">Keywords</label>
+                <input class="form-control" name="keywords" id="keywords" placeholder="Add search terms buyers use (brand, style, color, size, material)" />
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                  <button class="btn btn-outline-secondary btn-sm" type="button" id="generateKeywordsBtn">Generate Keywords</button>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="hashtags">Hashtags</label>
+                <input class="form-control" name="hashtags" id="hashtags" placeholder="#brand #category #style" readonly />
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                  <button class="btn btn-outline-secondary btn-sm" type="button" id="generateHashtagsBtn">Generate Hashtags</button>
+                </div>
+              </div>
+
+              <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-dark" type="submit">Save Listing</button>
+                <button class="btn btn-outline-secondary" type="button" id="saveDraftBtn">Save Draft</button>
+                <button class="btn btn-outline-secondary" type="button" id="loadDraftBtn">Load Draft</button>
+                <button class="btn btn-outline-secondary" type="button" id="clearDraftBtn">Clear Draft</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <aside class="col-12 col-xl-5 d-flex">
+        <div class="card h-100 w-100">
+          <div class="card-body d-flex flex-column">
+            <h2 class="h4 mb-3">Live Preview</h2>
+            <div class="preview-photo-grid mb-3">
+              <div class="placeholder-photo" id="listingPhotoPlaceholder1" role="img" aria-label="Listing preview image 1">
+                <div class="preview-guidance-wrap">
+                  <p class="preview-guidance-title mb-2">Photo 1</p>
+                  <p class="preview-guidance-icon mb-2" aria-hidden="true"><i class="bi bi-image"></i></p>
+                  <ul class="preview-guidance-list mb-0">
+                    <li>Main view</li>
+                    <li>Centered</li>
+                    <li>Bright light</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="placeholder-photo" id="listingPhotoPlaceholder2" role="img" aria-label="Listing preview image 2">
+                <div class="preview-guidance-wrap">
+                  <p class="preview-guidance-title mb-2">Photo 2</p>
+                  <p class="preview-guidance-icon mb-2" aria-hidden="true"><i class="bi bi-image"></i></p>
+                  <ul class="preview-guidance-list mb-0">
+                    <li>Tag close-up</li>
+                    <li>Size shown</li>
+                    <li>Text clear</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="placeholder-photo" id="listingPhotoPlaceholder3" role="img" aria-label="Listing preview image 3">
+                <div class="preview-guidance-wrap">
+                  <p class="preview-guidance-title mb-2">Photo 3</p>
+                  <p class="preview-guidance-icon mb-2" aria-hidden="true"><i class="bi bi-image"></i></p>
+                  <ul class="preview-guidance-list mb-0">
+                    <li>Detail shot</li>
+                    <li>Show flaw</li>
+                    <li>Zoomed in</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <p class="small text-secondary mb-2">Photo preview auto-populates from your listing details (no upload required).</p>
+            <p id="listingCardTitle" class="fs-5 fw-semibold mb-1">Untitled item</p>
+            <p id="listingCardMeta" class="text-secondary mb-2">Brand • Category • Condition</p>
+            <p id="listingCardPrice" class="fs-4 fw-bold mb-3">$0.00</p>
+            <p id="listingCardNotes" class="text-secondary">Description preview will appear here.</p>
+
+            <h3 class="h6 mt-auto">Export Text</h3>
+            <pre id="exportPreview" class="bg-dark text-light rounded p-3 small mb-3"></pre>
+            <div class="d-flex gap-2">
+              <button class="btn btn-dark" type="button" id="copyBtn">Copy Summary</button>
+              <a class="btn btn-outline-secondary" href="dashboard.html">Go to Dashboard</a>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="border-top bg-white py-4 mt-4">
+    <div class="container">
+      <div class="row g-4">
+        <div class="col-12 col-lg-4">
+          <p class="fw-semibold mb-1">Listing Lab</p>
+          <p class="small text-secondary mb-0">A complete pre-listing workflow for resellers to price, write, and organize listings faster.</p>
+          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Get Started</a>
+        </div>
+        <div class="col-6 col-lg-2">
+          <p class="small text-uppercase text-secondary mb-2">Product</p>
+          <ul class="list-unstyled mb-0">
+            <li><a href="new-listing.html">Create Listing</a></li>
+            <li><a href="dashboard.html">Dashboard</a></li>
+            <li><a href="pricing.html">Pricing Calculator</a></li>
+          </ul>
+        </div>
+        <div class="col-6 col-lg-2">
+          <p class="small text-uppercase text-secondary mb-2">Tools</p>
+          <ul class="list-unstyled mb-0">
+            <li><a href="templates.html">Smart Templates</a></li>
+            <li><a href="integrations.html">Integrations</a></li>
+            <li><a href="listing.html">Listing Detail</a></li>
+          </ul>
+        </div>
+        <div class="col-6 col-lg-2">
+          <p class="small text-uppercase text-secondary mb-2">Learn</p>
+          <ul class="list-unstyled mb-0">
+            <li><a href="about.html">About</a></li>
+            <li><a href="features.html">Features</a></li>
+            <li><a href="how-it-works.html">How It Works</a></li>
+          </ul>
+        </div>
+        <div class="col-6 col-lg-2">
+          <p class="small text-uppercase text-secondary mb-2">Contact Us</p>
+          <ul class="list-unstyled mb-0">
+            <li><a href="mailto:support@listinglab.com">support@listinglab.com</a></li>
+            <li class="fs-4" aria-label="Social media icons (not linked)"><span class="me-3" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></span><span class="me-3" title="TikTok" aria-label="TikTok"><i class="bi bi-tiktok"></i></span><span title="Pinterest" aria-label="Pinterest"><i class="bi bi-pinterest"></i></span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+    crossorigin="anonymous"
+  ></script>
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
