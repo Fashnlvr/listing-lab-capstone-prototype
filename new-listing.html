@@ -18,7 +18,6 @@
 
   <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
     <div class="container">
-      <a class="navbar-brand fw-semibold" href="index.html">Listing Lab</a>
       <button
         class="navbar-toggler"
         type="button"
@@ -30,13 +29,16 @@
       >
         <span class="navbar-toggler-icon"></span>
       </button>
+      <a class="navbar-brand" href="index.html" aria-label="Listing Lab home">
+        <span class="brand-wordmark">Listing Lab</span>
+      </a>
       <div class="collapse navbar-collapse" id="primaryNav">
         <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
           <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
           <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
           <li class="nav-item"><a class="nav-link active" aria-current="page" href="new-listing.html">Create Listing</a></li>
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle menu-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Open menu" title="Menu">&#9776;</a>
+            <a class="nav-link dropdown-toggle menu-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Open more pages" title="More pages">&#9776;</a>
             <ul class="dropdown-menu dropdown-menu-end">
               <li><a class="dropdown-item" href="about.html">About</a></li>
               <li><a class="dropdown-item" href="features.html">Features</a></li>
@@ -307,7 +309,12 @@
     <div class="container">
       <div class="row g-4">
         <div class="col-12 col-lg-4">
-          <p class="fw-semibold mb-1">Listing Lab</p>
+          <p class="footer-brand mb-1">
+            <span class="brand-lockup">
+              <span class="brand-wordmark">Listing Lab</span>
+              <span class="brand-mark" aria-hidden="true"></span>
+            </span>
+          </p>
           <p class="small text-secondary mb-0">A complete pre-listing workflow for resellers to price, write, and organize listings faster.</p>
           <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Get Started</a>
         </div>

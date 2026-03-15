@@ -50,6 +50,20 @@ function pageHas(selector) {
   return Boolean($(selector));
 }
 
+function syncFilledState(field) {
+  if (!field) return;
+  const value = typeof field.value === "string" ? field.value.trim() : "";
+  field.classList.toggle("is-filled", value !== "");
+}
+
+function initFilledFieldStates() {
+  document.querySelectorAll(".form-control, .form-select").forEach((field) => {
+    syncFilledState(field);
+    field.addEventListener("input", () => syncFilledState(field));
+    field.addEventListener("change", () => syncFilledState(field));
+  });
+}
+
 function uid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -1528,6 +1542,7 @@ document.addEventListener("DOMContentLoaded", () => {
       new window.bootstrap.Tooltip(el);
     });
   }
+  initFilledFieldStates();
   initNewListingPage();
   initAboutPage();
   initFeaturesPage();
