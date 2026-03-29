@@ -11,6 +11,7 @@
     crossorigin="anonymous"
   />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="home-page">
@@ -30,7 +31,10 @@
         <span class="navbar-toggler-icon"></span>
       </button>
       <a class="navbar-brand" href="index.html" aria-label="Listing Lab home">
-        <span class="brand-wordmark">Listing Lab</span>
+        <span class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-wordmark"><span class="brand-wordmark__listing">Listing</span><span class="brand-wordmark__lab">Lab</span></span>
+        </span>
       </a>
       <div class="collapse navbar-collapse" id="primaryNav">
         <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
@@ -62,276 +66,190 @@
           Solves pricing guesswork, slow listing creation, and scattered records.
         </p>
         <p class="mb-3">
-          Instead of drafting directly inside a marketplace and rewriting details each time, use Listing Lab to prep once with better pricing direction, stronger listing copy, and organized records before you post in 4 easy steps.
+          Instead of drafting directly inside a marketplace and rewriting details each time, use Listing Lab to prep once with better pricing direction, stronger listing copy, and organized records before you post in 5 easy steps.
         </p>
         <div class="d-flex flex-wrap gap-2">
-          <a class="btn btn-dark" href="new-listing.html">Create Listing</a>
-          <a class="btn btn-outline-secondary" href="dashboard.html">View Dashboard</a>
-          <a class="btn btn-outline-secondary" href="templates.html">Build Smart Templates</a>
-        </div>
-        <div class="home-hero__meta mt-4">
-          <span>5 required inputs</span>
-          <span>4 easy steps</span>
-          <span>Live preview + export</span>
+          <a class="btn btn-dark" href="new-listing.html">Create Your First Listing <span class="hero-cta-arrow" aria-hidden="true">&longrightarrow;</span></a>
         </div>
       </div>
     </section>
 
-    <section class="card home-panel home-discover mb-4">
-      <div class="card-body">
-        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
-          <div>
-            <p class="home-section-kicker mb-1">Find your workflow</p>
-            <p class="mb-0 text-secondary">Jump straight into the part of Listing Lab you need right now.</p>
-          </div>
-          <div class="home-discover__links">
-            <a class="home-discover__pill" href="new-listing.html">Create Listing</a>
-            <a class="home-discover__pill" href="dashboard.html">Dashboard</a>
-            <a class="home-discover__pill" href="templates.html">Smart Templates</a>
+    <div class="home-content-shell">
+      <section class="card home-panel home-row-workflow mb-4">
+        <div class="card-body">
+          <div class="row g-3 align-items-stretch">
+            <div class="col-12 col-lg-3">
+              <div class="home-workflow-card home-workflow-card--one border rounded p-3 h-100 d-flex flex-column">
+                <p class="home-workflow-kicker small text-secondary mb-2">Step 1</p>
+                <p class="fw-semibold mb-2">Enter Essentials</p>
+                <p class="small text-secondary mb-3">Add the required fields so pricing and listing tools can run.</p>
+              </div>
+            </div>
+            <div class="col-12 col-lg-3">
+              <div class="home-workflow-card home-workflow-card--two border rounded p-3 h-100 d-flex flex-column">
+                <p class="home-workflow-kicker small text-secondary mb-2">Step 2</p>
+                <p class="fw-semibold mb-2">Set Price</p>
+                <p class="small text-secondary mb-3">Use Formula Pricing Helper, then optionally compare eBay comps.</p>
+              </div>
+            </div>
+            <div class="col-12 col-lg-3">
+              <div class="home-workflow-card home-workflow-card--three border rounded p-3 h-100 d-flex flex-column">
+                <p class="home-workflow-kicker small text-secondary mb-2">Step 3</p>
+                <p class="fw-semibold mb-2">Review Preview</p>
+                <p class="small text-secondary mb-3">Generated title, description, keywords, and image preview.</p>
+              </div>
+            </div>
+            <div class="col-12 col-lg-3">
+              <div class="home-workflow-card home-workflow-card--four border rounded p-3 h-100 d-flex flex-column">
+                <p class="home-workflow-kicker small text-secondary mb-2">Step 4</p>
+                <p class="fw-semibold mb-2">Save and Export</p>
+                <p class="small text-secondary mb-3">Store to dashboard and export your listing records to CSV.</p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="card home-panel mb-4">
-      <div class="card-body">
-        <div class="row g-3 align-items-stretch">
-          <div class="col-12 col-lg-3">
-            <div class="home-workflow-card border rounded p-3 h-100 d-flex flex-column">
-              <p class="home-workflow-kicker small text-secondary mb-2">Step 1</p>
-              <p class="fw-semibold mb-2">Enter Essentials</p>
-              <p class="small text-secondary mb-3">Add the required fields so pricing and listing tools can run.</p>
-              <div class="home-workflow-note mt-auto" aria-label="Step 1 completion">
-                <span>Required</span>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-lg-3">
-            <div class="home-workflow-card border rounded p-3 h-100 d-flex flex-column">
-              <p class="home-workflow-kicker small text-secondary mb-2">Step 2</p>
-              <p class="fw-semibold mb-2">Set Price</p>
-              <p class="small text-secondary mb-3">Use Formula Pricing Helper, then optionally compare eBay comps.</p>
-              <div class="home-workflow-note mt-auto" aria-label="Step 2 completion">
-                <span>Pricing Ready</span>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-lg-3">
-            <div class="home-workflow-card border rounded p-3 h-100 d-flex flex-column">
-              <p class="home-workflow-kicker small text-secondary mb-2">Step 3</p>
-              <p class="fw-semibold mb-2">Review Preview</p>
-              <p class="small text-secondary mb-3">Generated title, description, keywords, and image preview.</p>
-              <div class="home-workflow-note mt-auto" aria-label="Step 3 completion">
-                <span>Preview Live</span>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-lg-3">
-            <div class="home-workflow-card border rounded p-3 h-100 d-flex flex-column">
-              <p class="home-workflow-kicker small text-secondary mb-2">Step 4</p>
-              <p class="fw-semibold mb-2">Save and Export</p>
-              <p class="small text-secondary mb-3">Store to dashboard and export your listing records to CSV.</p>
-              <div class="home-workflow-note mt-auto" aria-label="Step 4 completion">
-                <span>Output Ready</span>
-              </div>
+      <section class="row g-4 home-row-insights mb-4">
+        <div class="col-12 col-lg-6">
+          <div class="card home-panel home-insight-card home-insight-card--why h-100">
+            <div class="card-body">
+              <p class="home-section-kicker mb-1">Why Listing Lab</p>
+              <p class="h5 mb-2">Enter Details Once. Use Them Everywhere.</p>
+              <p class="small text-secondary mb-2">Your Item Name, Brand, Category, Condition, and Price become the engine behind every workflow step.</p>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+        <div class="col-12 col-lg-6">
+          <div class="card home-panel home-story home-insight-card home-insight-card--prep h-100">
+            <div class="card-body">
+              <p class="home-section-kicker mb-1">Built for the prep stage</p>
+              <p class="h5 mb-2">From Raw Item to Publish-Ready Listing</p>
+              <p class="small text-secondary mb-2">As soon as essentials are in, Listing Lab turns them into practical outputs you can use right away.</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-    <section class="row g-4 mb-4">
-      <div class="col-12 col-lg-6">
-        <div class="card home-panel h-100">
-          <div class="card-body">
-            <p class="home-section-kicker mb-1">Why Listing Lab</p>
-            <p class="h5 mb-2">Enter Details Once. Use Them Everywhere.</p>
-            <p class="small text-secondary mb-2">Your Item Name, Brand, Category, Condition, and Price become the engine behind every workflow step.</p>
-            <p class="mb-2">
-              No duplicate entry. Start in Create Listing and let the same core data drive pricing, copy, previews, and saved records.
-            </p>
-            <p class="mb-0">
-              You spend less time formatting fields and more time publishing profitable inventory.
-            </p>
+      <section class="row g-3 home-row-stats mb-4">
+        <div class="col-12 col-md-4">
+          <div class="card home-panel home-stat-card home-stat-card--inputs h-100 text-center">
+            <div class="card-body">
+              <p class="small text-secondary mb-1">Required Inputs</p>
+              <p class="display-6 mb-0">5</p>
+              <p class="small mb-0">Item Name, Brand, Category, Condition, Price</p>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="col-12 col-lg-6">
-        <div class="card home-panel home-story h-100">
-          <div class="card-body">
-            <p class="home-section-kicker mb-1">Built for the prep stage</p>
-            <p class="h5 mb-2">From Raw Item to Publish-Ready Listing</p>
-            <p class="small text-secondary mb-2">As soon as essentials are in, Listing Lab turns them into practical outputs you can use right away.</p>
-            <p class="mb-2">
-              Get price guidance, supporting comp context, stronger listing copy, and a live preview before you post.
-            </p>
-            <p class="mb-0">
-              Save to dashboard, track performance, and export clean records when it is time to list across platforms.
-            </p>
+        <div class="col-12 col-md-4">
+          <div class="card home-panel home-stat-card home-stat-card--steps h-100 text-center">
+            <div class="card-body">
+              <p class="small text-secondary mb-1">Core Workflow Steps</p>
+              <p class="display-6 mb-0">3</p>
+              <p class="small mb-0">Create Listing, Dashboard, Smart Templates</p>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+        <div class="col-12 col-md-4">
+          <div class="card home-panel home-stat-card home-stat-card--support h-100 text-center">
+            <div class="card-body">
+              <p class="small text-secondary mb-1">Saved Listing Support</p>
+              <p class="display-6 mb-0">100%</p>
+              <p class="small mb-0">LocalStorage persistence + CSV export</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-    <section class="card home-panel mb-4">
-      <div class="card-body">
-        <div class="d-flex flex-column flex-lg-row align-items-lg-end justify-content-between gap-3 mb-3">
-          <div>
-            <p class="home-section-kicker mb-1">Most-used tools</p>
-            <p class="h5 mb-0">The pages sellers move between most while building a listing.</p>
+      <section class="card home-panel home-row-tools mb-4">
+        <div class="card-body">
+          <div class="home-row-tools__header d-flex flex-column flex-lg-row align-items-lg-end justify-content-between gap-3 mb-3">
+            <div>
+              <p class="home-section-kicker mb-1">Most-used tools</p>
+              <p class="h5 mb-0">Browse the pages sellers use most while building a listing.</p>
+            </div>
           </div>
-        </div>
-        <div class="row g-3">
-          <div class="col-12 col-md-4">
-            <div class="home-step-card border rounded p-3 h-100 d-flex flex-column">
-              <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="home-step-badge badge rounded-pill">1</span>
-                <p class="fw-semibold mb-0">Create Listing</p>
+          <div class="row g-3 text-center">
+            <div class="col-12 col-md-3">
+              <div class="home-tool-card border rounded p-3 h-100 d-flex flex-column text-center">
+                <span class="home-tool-card__icon" aria-hidden="true"><i class="bi bi-stars"></i></span>
+                <p class="fw-semibold mb-1 mt-3">Create Listing</p>
+                <p class="small text-secondary mb-3">Input and generate</p>
+                <a class="home-tool-card__cta btn btn-sm btn-outline-dark" href="new-listing.html">Open</a>
               </div>
-              <p class="small text-secondary mb-3">Essential inputs, pricing helpers, preview, and save.</p>
-              <a class="home-step-status mt-auto" href="new-listing.html">Create Listing</a>
             </div>
-          </div>
-          <div class="col-12 col-md-4">
-            <div class="home-step-card border rounded p-3 h-100 d-flex flex-column">
-              <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="home-step-badge badge rounded-pill">2</span>
-                <p class="fw-semibold mb-0">Dashboard</p>
+            <div class="col-12 col-md-3">
+              <div class="home-tool-card border rounded p-3 h-100 d-flex flex-column text-center">
+                <span class="home-tool-card__icon" aria-hidden="true"><i class="bi bi-folder2-open"></i></span>
+                <p class="fw-semibold mb-1 mt-3">Dashboard</p>
+                <p class="small text-secondary mb-3">Track and export</p>
+                <a class="home-tool-card__cta btn btn-sm btn-outline-dark" href="dashboard.html">Open</a>
               </div>
-              <p class="small text-secondary mb-3">Review saved listings, open detail view, export CSV.</p>
-              <a class="home-step-status mt-auto" href="dashboard.html">Go to Dashboard</a>
             </div>
-          </div>
-          <div class="col-12 col-md-4">
-            <div class="home-step-card border rounded p-3 h-100 d-flex flex-column">
-              <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="home-step-badge badge rounded-pill">3</span>
-                <p class="fw-semibold mb-0">Smart Templates</p>
+            <div class="col-12 col-md-3">
+              <div class="home-tool-card border rounded p-3 h-100 d-flex flex-column text-center">
+                <span class="home-tool-card__icon" aria-hidden="true"><i class="bi bi-graph-up-arrow"></i></span>
+                <p class="fw-semibold mb-1 mt-3">Pricing Calculator</p>
+                <p class="small text-secondary mb-3">Profit and margin checks</p>
+                <a class="home-tool-card__cta btn btn-sm btn-outline-dark" href="pricing.html">Open</a>
               </div>
-              <p class="small text-secondary mb-3">Build shipping copy from USPS rates lookup.</p>
-              <a class="home-step-status mt-auto" href="templates.html">Go to Templates</a>
+            </div>
+            <div class="col-12 col-md-3">
+              <div class="home-tool-card border rounded p-3 h-100 d-flex flex-column text-center">
+                <span class="home-tool-card__icon" aria-hidden="true"><i class="bi bi-journal-text"></i></span>
+                <p class="fw-semibold mb-1 mt-3">Smart Templates</p>
+                <p class="small text-secondary mb-3">Shipping-ready copy</p>
+                <a class="home-tool-card__cta btn btn-sm btn-outline-dark" href="templates.html">Open</a>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
-
-    <section class="row g-3 mb-4">
-      <div class="col-12 col-md-4">
-        <div class="card home-panel h-100 text-center">
-          <div class="card-body">
-            <p class="small text-secondary mb-1">Required Inputs</p>
-            <p class="display-6 mb-0">5</p>
-            <p class="small mb-0">Item Name, Brand, Category, Condition, Price</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-md-4">
-        <div class="card home-panel h-100 text-center">
-          <div class="card-body">
-            <p class="small text-secondary mb-1">Core Workflow Steps</p>
-            <p class="display-6 mb-0">3</p>
-            <p class="small mb-0">Create Listing, Dashboard, Smart Templates</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-md-4">
-        <div class="card home-panel h-100 text-center">
-          <div class="card-body">
-            <p class="small text-secondary mb-1">Saved Listing Support</p>
-            <p class="display-6 mb-0">100%</p>
-            <p class="small mb-0">LocalStorage persistence + CSV export</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card home-panel mb-4">
-      <div class="card-body">
-        <div class="d-flex flex-column flex-lg-row align-items-lg-end justify-content-between gap-3 mb-3">
-          <div>
-            <p class="home-section-kicker mb-1">More ways in</p>
-            <p class="h5 mb-0">Browse the rest of the workspace and supporting tools.</p>
-          </div>
-        </div>
-        <div class="row g-3 text-center">
-          <div class="col-12 col-md-3">
-            <div class="home-tool-card border rounded p-3 h-100">
-              <p class="fw-semibold mb-1">Create Listing</p>
-              <p class="small text-secondary mb-2">Input and generate</p>
-              <a class="home-tool-card__cta btn btn-sm btn-outline-dark" href="new-listing.html">Open</a>
-            </div>
-          </div>
-          <div class="col-12 col-md-3">
-            <div class="home-tool-card border rounded p-3 h-100">
-              <p class="fw-semibold mb-1">Dashboard</p>
-              <p class="small text-secondary mb-2">Track and export</p>
-              <a class="home-tool-card__cta btn btn-sm btn-outline-dark" href="dashboard.html">Open</a>
-            </div>
-          </div>
-          <div class="col-12 col-md-3">
-            <div class="home-tool-card border rounded p-3 h-100">
-              <p class="fw-semibold mb-1">Pricing Calculator</p>
-              <p class="small text-secondary mb-2">Profit and margin checks</p>
-              <a class="home-tool-card__cta btn btn-sm btn-outline-dark" href="pricing.html">Open</a>
-            </div>
-          </div>
-          <div class="col-12 col-md-3">
-            <div class="home-tool-card border rounded p-3 h-100">
-              <p class="fw-semibold mb-1">Smart Templates</p>
-              <p class="small text-secondary mb-2">Shipping-ready copy</p>
-              <a class="home-tool-card__cta btn btn-sm btn-outline-dark" href="templates.html">Open</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
   </main>
 
   <footer class="border-top bg-white py-4 mt-4">
-    <div class="container">
-      <div class="row g-4">
-        <div class="col-12 col-lg-4">
-          <p class="footer-brand mb-1">
-            <span class="brand-lockup">
-              <span class="brand-wordmark">Listing Lab</span>
-              <span class="brand-mark" aria-hidden="true"></span>
-            </span>
-          </p>
-          <p class="small text-secondary mb-0">A complete pre-listing workflow for resellers to price, write, and organize listings faster.</p>
-          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Get Started</a>
-        </div>
-        <div class="col-6 col-lg-2">
-          <p class="small text-uppercase text-secondary mb-2">Product</p>
-          <ul class="list-unstyled mb-0">
-            <li><a href="new-listing.html">Create Listing</a></li>
-            <li><a href="dashboard.html">Dashboard</a></li>
-            <li><a href="pricing.html">Pricing Calculator</a></li>
-          </ul>
-        </div>
-        <div class="col-6 col-lg-2">
-          <p class="small text-uppercase text-secondary mb-2">Tools</p>
-          <ul class="list-unstyled mb-0">
-            <li><a href="templates.html">Smart Templates</a></li>
-            <li><a href="integrations.html">Integrations</a></li>
-            <li><a href="listing.html">Listing Detail</a></li>
-          </ul>
-        </div>
-        <div class="col-6 col-lg-2">
-          <p class="small text-uppercase text-secondary mb-2">Learn</p>
-          <ul class="list-unstyled mb-0">
-            <li><a href="about.html">About</a></li>
-            <li><a href="features.html">Features</a></li>
-            <li><a href="how-it-works.html">How It Works</a></li>
-          </ul>
-        </div>
-        <div class="col-6 col-lg-2">
-          <p class="small text-uppercase text-secondary mb-2">Contact Us</p>
-          <ul class="list-unstyled mb-0">
-            <li><a href="mailto:support@listinglab.com">support@listinglab.com</a></li>
-            <li class="fs-4" aria-label="Social media icons (not linked)"><span class="me-3" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></span><span class="me-3" title="TikTok" aria-label="TikTok"><i class="bi bi-tiktok"></i></span><span title="Pinterest" aria-label="Pinterest"><i class="bi bi-pinterest"></i></span></li>
-          </ul>
-        </div>
+    <div class="row g-4">
+      <div class="col-12 col-lg-4">
+        <p class="footer-brand mb-1">
+          <span class="brand-lockup">
+            <span class="brand-wordmark"><span class="brand-wordmark__listing">Listing</span><span class="brand-wordmark__lab">Lab</span></span>
+            <span class="brand-mark" aria-hidden="true"></span>
+          </span>
+        </p>
+        <p class="small text-secondary mb-0">A complete pre-listing workflow for resellers to price, write, and organize listings faster.</p>
+        <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Get Started</a>
+      </div>
+      <div class="col-6 col-lg-2">
+        <p class="small text-uppercase text-secondary mb-2">Product</p>
+        <ul class="list-unstyled mb-0">
+          <li><a href="new-listing.html">Create Listing</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="pricing.html">Pricing Calculator</a></li>
+        </ul>
+      </div>
+      <div class="col-6 col-lg-2">
+        <p class="small text-uppercase text-secondary mb-2">Tools</p>
+        <ul class="list-unstyled mb-0">
+          <li><a href="templates.html">Smart Templates</a></li>
+          <li><a href="integrations.html">Integrations</a></li>
+          <li><a href="listing.html">Listing Detail</a></li>
+        </ul>
+      </div>
+      <div class="col-6 col-lg-2">
+        <p class="small text-uppercase text-secondary mb-2">Learn</p>
+        <ul class="list-unstyled mb-0">
+          <li><a href="about.html">About</a></li>
+          <li><a href="features.html">Features</a></li>
+          <li><a href="how-it-works.html">How It Works</a></li>
+        </ul>
+      </div>
+      <div class="col-6 col-lg-2">
+        <p class="small text-uppercase text-secondary mb-2">Contact Us</p>
+        <ul class="list-unstyled mb-0">
+          <li><a href="mailto:support@listinglab.com">support@listinglab.com</a></li>
+          <li class="fs-4" aria-label="Social media icons (not linked)"><span class="me-3" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></span><span class="me-3" title="TikTok" aria-label="TikTok"><i class="bi bi-tiktok"></i></span><span title="Pinterest" aria-label="Pinterest"><i class="bi bi-pinterest"></i></span></li>
+        </ul>
       </div>
     </div>
   </footer>
