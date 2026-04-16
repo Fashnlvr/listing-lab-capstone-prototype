@@ -586,6 +586,7 @@ function initNewListingPage() {
     formError: $("#formError"),
     formStatus: $("#formStatus"),
     completenessText: $("#completenessText"),
+    completenessBarTrack: $("#completenessBarTrack"),
     completenessBar: $("#completenessBar"),
     suggestedRange: $("#suggestedRange"),
     priceCheck: $("#priceCheck"),
@@ -777,6 +778,10 @@ function initNewListingPage() {
       const visiblePct = pct === 0 ? 4 : pct;
       nodes.completenessBar.style.width = `${visiblePct}%`;
       nodes.completenessBar.textContent = `${pct}%`;
+    }
+    if (nodes.completenessBarTrack) {
+      nodes.completenessBarTrack.setAttribute("aria-valuenow", String(pct));
+      nodes.completenessBarTrack.setAttribute("aria-valuetext", `${score} of 5 required fields complete`);
     }
   }
 
@@ -1397,7 +1402,7 @@ function initDashboardPage() {
         <td>${escapeHtml(prettyCategory(listing.category))}</td>
         <td>${escapeHtml(prettyCondition(listing.condition))}</td>
         <td>
-          <select class="form-select form-select-sm" data-status-id="${escapeHtml(listing.id)}">
+          <select class="form-select form-select-sm" data-status-id="${escapeHtml(listing.id)}" aria-label="Status for ${escapeHtml(listing.itemName || "Untitled")}">
             <option value="draft" ${statusValue === "draft" ? "selected" : ""}>Draft</option>
             <option value="ready" ${statusValue === "ready" ? "selected" : ""}>Ready</option>
             <option value="listed" ${statusValue === "listed" ? "selected" : ""}>Listed</option>
@@ -1406,7 +1411,7 @@ function initDashboardPage() {
         </td>
         <td>$${Number(listing.price || 0).toFixed(2)}</td>
         <td>${escapeHtml(formatDate(listing.createdAt))}</td>
-        <td><button class="btn btn-sm btn-outline-danger" data-del="${escapeHtml(listing.id)}" type="button">Delete</button></td>
+        <td><button class="btn btn-sm btn-outline-danger" data-del="${escapeHtml(listing.id)}" type="button" aria-label="Delete ${escapeHtml(listing.itemName || "Untitled")}">Delete</button></td>
       `;
 
       tr.querySelector("[data-status-id]").addEventListener("change", (event) => {
