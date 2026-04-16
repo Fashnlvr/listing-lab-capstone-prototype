@@ -409,8 +409,10 @@ body.interior-page .navbar .container {
 
 .navbar-toggler {
   border-color: var(--ll-line);
-  border-radius: 14px;
-  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  width: 2.55rem;
+  height: 2.45rem;
+  padding: 0;
   margin-right: 0.45rem;
 }
 
@@ -418,31 +420,42 @@ body.interior-page .navbar .container {
   box-shadow: 0 0 0 0.22rem rgba(74, 21, 56, 0.12);
 }
 
+.navbar-toggler-icon {
+  width: 16px;
+  height: 11px;
+  background:
+    linear-gradient(#5f6368, #5f6368) left top / 100% 1px no-repeat,
+    linear-gradient(#5f6368, #5f6368) left 5px / 100% 1px no-repeat,
+    linear-gradient(#5f6368, #5f6368) left bottom / 100% 1px no-repeat;
+}
+
 .navbar .menu-toggle {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  font-size: 0;
+  width: 2.55rem;
+  height: 2.45rem;
+  min-width: 0;
+  font-size: 0.98rem;
   color: transparent;
   border: 1px solid var(--ll-line);
-  border-radius: 12px;
-  background: #fff;
+  border-radius: 8px;
+  background: transparent;
   text-decoration: none;
   margin-left: 0.25rem;
+  padding: 0 !important;
+  line-height: 1;
   box-shadow: none;
 }
 
 .navbar .menu-toggle::before {
   content: "";
-  width: 1.05rem;
-  height: 0.8rem;
-  background:
-    linear-gradient(var(--ll-accent), var(--ll-accent)) center top / 100% 2px no-repeat,
-    linear-gradient(var(--ll-accent), var(--ll-accent)) center center / 100% 2px no-repeat,
-    linear-gradient(var(--ll-accent), var(--ll-accent)) center bottom / 100% 2px no-repeat;
+  display: none;
+}
+
+.navbar .menu-toggle .navbar-toggler-icon {
+  display: block;
 }
 
 .navbar .menu-toggle::after {
@@ -459,7 +472,7 @@ body.interior-page .navbar .container {
 .navbar .menu-toggle.show,
 .navbar .menu-toggle[aria-current="page"] {
   color: transparent !important;
-  background: #fff !important;
+  background: transparent !important;
   border-color: var(--ll-line) !important;
   font-weight: 500;
 }
@@ -485,6 +498,13 @@ body.interior-page .navbar .container {
 .navbar .dropdown-item:active {
   color: var(--ll-accent);
   background: rgba(74, 21, 56, 0.07);
+}
+
+@media (min-width: 992px) {
+  .navbar .menu-toggle.show {
+    background: transparent !important;
+    border-color: var(--ll-line) !important;
+  }
 }
 
 /* Shared Surfaces */
@@ -2000,7 +2020,7 @@ footer li[aria-label="Social media icons (not linked)"] {
 @media (max-width: 991.98px) {
   .navbar .container {
     position: relative;
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 
   .navbar .navbar-brand {
@@ -2014,7 +2034,11 @@ footer li[aria-label="Social media icons (not linked)"] {
   }
 
   .navbar-toggler {
+    margin-left: auto;
     margin-right: 0;
+    width: 2.55rem;
+    height: 2.45rem;
+    padding: 0;
   }
 
   .navbar .navbar-collapse {
@@ -2054,6 +2078,7 @@ footer li[aria-label="Social media icons (not linked)"] {
   }
 
   .navbar .menu-toggle::before {
+    display: block;
     width: 0.55rem;
     height: 0.55rem;
     border: 0;
@@ -2061,6 +2086,10 @@ footer li[aria-label="Social media icons (not linked)"] {
     border-bottom: 2px solid var(--ll-accent);
     background: none;
     transform: rotate(45deg) translateY(-1px);
+  }
+
+  .navbar .menu-toggle .navbar-toggler-icon {
+    display: none;
   }
 
   .navbar .dropdown-menu {
