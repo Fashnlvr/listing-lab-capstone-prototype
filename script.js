@@ -3,6 +3,7 @@ const STORAGE_KEYS = {
   draft: "listingLab:draft:v2",
   uspsUserId: "listingLab:uspsUserId:v1",
   templates: "listingLab:templates:v1",
+  smartTemplates: "listingLab:smartTemplates:v1",
 };
 
 const LISTING_STATUSES = ["draft", "ready", "listed", "sold"];
@@ -92,6 +93,19 @@ function formatDate(iso) {
   });
 }
 
+function formatDateTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.valueOf())) return "";
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -140,7 +154,13 @@ function saveListings(listings) {
 
 function addListing(listing) {
   const listings = getListings();
-  listings.unshift(listing);
+  const now = new Date().toISOString();
+  listings.unshift({
+    ...listing,
+    status: normalizeStatus(listing.status),
+    createdAt: listing.createdAt || now,
+    updatedAt: listing.updatedAt || listing.createdAt || now,
+  });
   saveListings(listings);
 }
 
@@ -153,13 +173,41 @@ function updateListing(id, updates) {
   const listings = getListings();
   const idx = listings.findIndex((listing) => listing.id === id);
   if (idx === -1) return false;
-  listings[idx] = { ...listings[idx], ...updates };
+  listings[idx] = {
+    ...listings[idx],
+    ...updates,
+    status: updates.status ? normalizeStatus(updates.status) : normalizeStatus(listings[idx].status),
+    updatedAt: updates.updatedAt || new Date().toISOString(),
+  };
   saveListings(listings);
   return true;
 }
 
 function getListingById(id) {
   return getListings().find((listing) => listing.id === id);
+}
+
+function getListingSku(listing) {
+  const brand = normalize(listing?.brand).replace(/[^a-z0-9]/g, "").slice(0, 3).toUpperCase() || "LL";
+  const category = normalize(listing?.category).replace(/[^a-z0-9]/g, "").slice(0, 3).toUpperCase() || "GEN";
+  const idPart = String(listing?.id || "").replace(/[^a-z0-9]/gi, "").slice(-4).toUpperCase() || "0000";
+  return `${brand}-${category}-${idPart}`;
+}
+
+function duplicateListing(id) {
+  const listing = getListingById(id);
+  if (!listing) return null;
+  const now = new Date().toISOString();
+  const duplicate = {
+    ...listing,
+    id: uid(),
+    itemName: `${listing.itemName || "Untitled item"} Copy`,
+    status: "draft",
+    createdAt: now,
+    updatedAt: now,
+  };
+  addListing(duplicate);
+  return duplicate;
 }
 
 function getTemplates() {
@@ -191,6 +239,33 @@ function removeTemplate(id) {
 
 function getTemplateById(id) {
   return getTemplates().find((template) => template.id === id);
+}
+
+function getSmartTemplates() {
+  const raw = safeStorageGet(STORAGE_KEYS.smartTemplates);
+  if (!raw) return [];
+  const parsed = safeJsonParse(raw, []);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+function saveSmartTemplates(templates) {
+  safeStorageSet(STORAGE_KEYS.smartTemplates, JSON.stringify(templates));
+}
+
+function upsertSmartTemplate(template) {
+  const templates = getSmartTemplates();
+  const idx = templates.findIndex((item) => item.id === template.id);
+  if (idx >= 0) {
+    templates[idx] = template;
+  } else {
+    templates.unshift(template);
+  }
+  saveSmartTemplates(templates);
+}
+
+function removeSmartTemplate(id) {
+  const templates = getSmartTemplates().filter((template) => template.id !== id);
+  saveSmartTemplates(templates);
 }
 
 function saveDraft(draft) {
@@ -372,7 +447,7 @@ function normalizeStatus(value) {
 function prettyStatus(value) {
   const map = {
     draft: "Draft",
-    ready: "Ready",
+    ready: "Ready to List",
     listed: "Listed",
     sold: "Sold",
   };
@@ -591,14 +666,24 @@ function initNewListingPage() {
     suggestedRange: $("#suggestedRange"),
     priceCheck: $("#priceCheck"),
     exportPreview: $("#exportPreview"),
+    exportTitle: $("#exportTitle"),
+    exportPrice: $("#exportPrice"),
+    exportDescription: $("#exportDescription"),
+    exportSellerNotes: $("#exportSellerNotes"),
+    exportHashtags: $("#exportHashtags"),
     listingPhotoPlaceholders: [
       $("#listingPhotoPlaceholder1"),
       $("#listingPhotoPlaceholder2"),
       $("#listingPhotoPlaceholder3"),
     ].filter(Boolean),
     listingCardTitle: $("#listingCardTitle"),
-    listingCardMeta: $("#listingCardMeta"),
+    listingSnapshotBrand: $("#listingSnapshotBrand"),
+    listingSnapshotCategory: $("#listingSnapshotCategory"),
+    listingSnapshotStatus: $("#listingSnapshotStatus"),
     listingCardPrice: $("#listingCardPrice"),
+    listingSnapshotRange: $("#listingSnapshotRange"),
+    listingSnapshotPriceCheck: $("#listingSnapshotPriceCheck"),
+    listingCardCondition: $("#listingCardCondition"),
     listingCardNotes: $("#listingCardNotes"),
     runCompSearchBtn: $("#runCompSearchBtn"),
     applyCompPriceBtn: $("#applyCompPriceBtn"),
@@ -801,15 +886,29 @@ function initNewListingPage() {
     nodes.priceCheck.textContent = priceCheck.msg;
 
     const title = state.itemName || "Untitled item";
-    const brand = state.brand || "No brand";
-    const category = prettyCategory(state.category);
     const condition = prettyCondition(state.condition);
     const price = Number.isFinite(state.price) && state.price > 0 ? `$${state.price.toFixed(2)}` : "$0.00";
+    const rangeText = suggestedRange ? `$${suggestedRange[0]} - $${suggestedRange[1]}` : "Add category + condition";
+    const priceCheckText = priceCheck.msg || "Waiting for price";
+    const conditionText = state.condition
+      ? `${condition} condition${state.brand ? ` for this ${state.brand} item.` : "."}`
+      : "No condition selected yet.";
+    const descriptionText = state.notes || "Add notes for flaws, measurements, materials, and shipping details.";
+    const sellerNotesText = [
+      state.brand ? `Brand: ${state.brand}` : "",
+      state.category ? `Category: ${prettyCategory(state.category)}` : "",
+      `Condition: ${condition}`,
+      `Range: ${rangeText}`,
+      `Price Check: ${priceCheckText}`,
+    ].filter(Boolean).join("\n");
+    const hashtagsText = state.hashtags || "Generate hashtags from the form details.";
 
-    nodes.listingCardTitle.textContent = title;
-    nodes.listingCardMeta.textContent = `${brand} | ${category} | ${condition}`;
-    nodes.listingCardPrice.textContent = price;
-    nodes.listingCardNotes.textContent = state.notes || "Description preview will appear here.";
+    if (nodes.listingCardTitle) nodes.listingCardTitle.textContent = title;
+    if (nodes.listingCardPrice) nodes.listingCardPrice.textContent = price;
+    if (nodes.listingSnapshotRange) nodes.listingSnapshotRange.textContent = rangeText;
+    if (nodes.listingSnapshotPriceCheck) nodes.listingSnapshotPriceCheck.textContent = priceCheckText;
+    if (nodes.listingCardCondition) nodes.listingCardCondition.textContent = conditionText;
+    if (nodes.listingCardNotes) nodes.listingCardNotes.textContent = descriptionText;
     nodes.listingPhotoPlaceholders.forEach((placeholderNode, idx) => {
       placeholderNode.setAttribute("aria-label", `Listing preview ${idx + 1} for ${title}`);
     });
@@ -820,6 +919,11 @@ function initNewListingPage() {
     }
 
     nodes.exportPreview.textContent = buildExportSummary(state);
+    if (nodes.exportTitle) nodes.exportTitle.textContent = title;
+    if (nodes.exportPrice) nodes.exportPrice.textContent = price;
+    if (nodes.exportDescription) nodes.exportDescription.textContent = descriptionText;
+    if (nodes.exportSellerNotes) nodes.exportSellerNotes.textContent = sellerNotesText;
+    if (nodes.exportHashtags) nodes.exportHashtags.textContent = hashtagsText;
 
   }
 
@@ -867,6 +971,16 @@ function initNewListingPage() {
   }
 
   nodes.applyFormulaPriceBtn.addEventListener("click", applyFormulaPricing);
+
+  const activeDraft = loadDraft();
+  let currentEditingId = activeDraft?.__editingId || "";
+  if (currentEditingId && activeDraft) {
+    setFormState(activeDraft);
+    updatePreview();
+    const submitBtn = nodes.form?.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.textContent = "Update Listing";
+    nodes.formStatus.textContent = "Editing saved listing from inventory.";
+  }
 
   if (nodes.runCompSearchBtn) {
     nodes.runCompSearchBtn.addEventListener("click", async () => {
@@ -935,7 +1049,8 @@ function initNewListingPage() {
   }
 
   $("#saveDraftBtn").addEventListener("click", () => {
-    saveDraft(getFormState());
+    const draftState = getFormState();
+    saveDraft(currentEditingId ? { ...draftState, __editingId: currentEditingId } : draftState);
     setStatus("Draft saved.");
   });
 
@@ -945,6 +1060,7 @@ function initNewListingPage() {
       setError("No draft found.");
       return;
     }
+    currentEditingId = draft.__editingId || "";
     setFormState(draft);
     updatePreview();
     setStatus("Draft loaded.");
@@ -952,12 +1068,23 @@ function initNewListingPage() {
 
   $("#clearDraftBtn").addEventListener("click", () => {
     clearDraft();
+    currentEditingId = "";
     setStatus("Draft cleared.");
   });
 
   $("#copyBtn").addEventListener("click", async () => {
     const ok = await copyText(nodes.exportPreview.textContent || "");
     setStatus(ok ? "Summary copied." : "Copy failed. Select and copy manually.");
+  });
+
+  document.querySelectorAll(".export-copy-btn").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const targetId = button.getAttribute("data-copy-target");
+      const target = targetId ? document.getElementById(targetId) : null;
+      const ok = await copyText(target?.textContent || "");
+      const label = button.closest(".export-copy-card")?.querySelector(".preview-section-label")?.textContent || "Section";
+      setStatus(ok ? `${label} copied.` : "Copy failed. Select and copy manually.");
+    });
   });
 
   if (nodes.generateDescriptionBtn) {
@@ -1083,14 +1210,22 @@ function initNewListingPage() {
       return;
     }
 
-    addListing({
-      id: uid(),
-      ...state,
-      status: normalizeStatus(state.status),
-      createdAt: new Date().toISOString(),
-    });
-
-    saveDraft(state);
+    if (currentEditingId) {
+      const existingListing = getListingById(currentEditingId);
+      updateListing(currentEditingId, {
+        ...state,
+        status: normalizeStatus(existingListing?.status || state.status),
+      });
+      saveDraft(state);
+    } else {
+      addListing({
+        id: uid(),
+        ...state,
+        status: normalizeStatus(state.status),
+        createdAt: new Date().toISOString(),
+      });
+      saveDraft(state);
+    }
     window.location.href = "dashboard.html";
   });
 
@@ -1105,83 +1240,372 @@ function initNewListingPage() {
 }
 
 function initTemplatesPage() {
-  if (!pageHas("#buildShippingTemplateBtn")) return;
+  if (!pageHas("#templatesWorkspace")) return;
 
-  const userIdEl = $("#uspsUserId");
-  const originEl = $("#shipOriginZip");
-  const destEl = $("#shipDestZip");
-  const weightEl = $("#shipWeightOz");
-  const statusEl = $("#shippingTemplateStatus");
-  const summaryEl = $("#shippingRateSummary");
-  const previewEl = $("#shippingTemplatePreview");
+  const fields = {
+    uspsUserId: $("#shipUspsUserId"),
+    originZip: $("#shipOriginZip"),
+    destinationZip: $("#shipDestZip"),
+    pounds: $("#shipWeightPounds"),
+    ounces: $("#shipWeightOz"),
+    shippingSpeed: $("#templateShippingSpeed"),
+    handlingTime: $("#templateHandlingTime"),
+    packagingStyle: $("#templatePackagingStyle"),
+    disclosureStyle: $("#templateDisclosureStyle"),
+    combinedShipping: $("#templateCombinedShipping"),
+    thankYouTone: $("#templateThankYouTone"),
+  };
 
-  userIdEl.value = getUspsUserId();
+  const outputs = {
+    shipping: $("#shippingTemplatePreview"),
+    condition: $("#templateConditionOutput"),
+    bundle: $("#templateBundleOutput"),
+    thanks: $("#templateThankYouOutput"),
+    listingNotes: $("#templateListingNotesOutput"),
+  };
 
-  $("#saveUspsUserIdBtn").addEventListener("click", () => {
-    const userId = userIdEl.value.trim();
-    saveUspsUserId(userId);
-    statusEl.textContent = userId ? "USPS User ID saved locally." : "USPS User ID cleared.";
-  });
+  const statusEl = $("#templateWorkspaceStatus");
+  const shippingStatusEl = $("#templateShippingStatus");
+  const savedStatusEl = $("#savedTemplateStatus");
+  const savedListEl = $("#savedTemplateList");
+  const rateSummaryEl = $("#templateRateSummary");
+  const saveUspsUserIdBtn = $("#saveUspsUserIdBtn");
+  const buildShippingTemplateBtn = $("#buildShippingTemplateBtn");
+  const copyShippingTemplateBtn = $("#copyShippingTemplateBtn");
+  const buildTemplateWorkspaceBtn = $("#buildTemplateWorkspaceBtn");
+  const resetTemplateWorkspaceBtn = $("#resetTemplateWorkspaceBtn");
 
-  $("#buildShippingTemplateBtn").addEventListener("click", async () => {
-    const userId = userIdEl.value.trim() || getUspsUserId();
-    const origin = originEl.value.trim();
-    const destination = destEl.value.trim();
-    const totalOz = Number(weightEl.value);
+  const defaultState = {
+    shippingSpeed: "next-business-day",
+    handlingTime: "one-day",
+    packagingStyle: "clean-folded",
+    disclosureStyle: "standard",
+    combinedShipping: "encouraged",
+    thankYouTone: "warm",
+  };
 
-    previewEl.textContent = "";
-    summaryEl.textContent = "";
+  const labelMaps = {
+    shippingSpeed: {
+      "next-business-day": "next business day",
+      "two-business-days": "within 2 business days",
+      "three-business-days": "within 3 business days",
+    },
+    handlingTime: {
+      "same-day": "same-day handling when possible",
+      "one-day": "1 business day handling",
+      "two-days": "2 business day handling",
+    },
+    packagingStyle: {
+      "clean-folded": "cleanly folded in a fresh mailer",
+      boxed: "carefully boxed for safer transit",
+      wrapped: "wrapped with tissue and protective layers",
+    },
+    disclosureStyle: {
+      standard: "Please review all photos closely and read the item notes before purchasing. Any visible wear, measurements, or standout details should be called out in the listing.",
+      detailed: "Please review all photos closely before purchasing. The final listing should note fabric, measurements, closure details, and any visible wear or flaws so the buyer has a complete picture before checkout.",
+      concise: "Please review photos and notes carefully. Add any visible wear or flaw details directly to the listing before posting.",
+    },
+    combinedShipping: {
+      encouraged: "Bundles are welcome and combined shipping is encouraged when it lowers total shipping cost.",
+      available: "Combined shipping is available when package size and weight make it practical.",
+      offers: "Reasonable offers are welcome, and bundle requests can be reviewed case by case.",
+    },
+    thankYouTone: {
+      warm: "Thank you so much for shopping secondhand with me. I appreciate your order and your support.",
+      professional: "Thank you for your order. Your package is being prepared with care and will be sent with tracking.",
+      boutique: "Thank you for your order. Your package is wrapped with care and ready for a polished unboxing experience.",
+    },
+  };
 
-    if (!userId) {
-      statusEl.textContent = "Enter USPS User ID first.";
+  let latestRates = [];
+
+  function getReusableState() {
+    return {
+      shippingSpeed: fields.shippingSpeed.value || defaultState.shippingSpeed,
+      handlingTime: fields.handlingTime.value || defaultState.handlingTime,
+      packagingStyle: fields.packagingStyle.value || defaultState.packagingStyle,
+      disclosureStyle: fields.disclosureStyle.value || defaultState.disclosureStyle,
+      combinedShipping: fields.combinedShipping.value || defaultState.combinedShipping,
+      thankYouTone: fields.thankYouTone.value || defaultState.thankYouTone,
+    };
+  }
+
+  function applyReusableState(state = defaultState) {
+    fields.shippingSpeed.value = state.shippingSpeed || defaultState.shippingSpeed;
+    fields.handlingTime.value = state.handlingTime || defaultState.handlingTime;
+    fields.packagingStyle.value = state.packagingStyle || defaultState.packagingStyle;
+    fields.disclosureStyle.value = state.disclosureStyle || defaultState.disclosureStyle;
+    fields.combinedShipping.value = state.combinedShipping || defaultState.combinedShipping;
+    fields.thankYouTone.value = state.thankYouTone || defaultState.thankYouTone;
+  }
+
+  function getUspsState() {
+    return {
+      userId: fields.uspsUserId?.value.trim() || "",
+      originZip: String(fields.originZip?.value || "").replace(/\D/g, "").slice(0, 5),
+      destinationZip: String(fields.destinationZip?.value || "").replace(/\D/g, "").slice(0, 5),
+      pounds: Number(fields.pounds?.value || 0),
+      ounces: Number(fields.ounces?.value || 0),
+    };
+  }
+
+  function normalizeShipmentWeight(pounds, ounces) {
+    const totalOunces = Math.max(0, (Number.isFinite(pounds) ? pounds * 16 : 0) + (Number.isFinite(ounces) ? ounces : 0));
+    const normalizedPounds = Math.floor(totalOunces / 16);
+    const normalizedOunces = Number((totalOunces - (normalizedPounds * 16)).toFixed(1));
+    return { pounds: normalizedPounds, ounces: normalizedOunces };
+  }
+
+  function formatShipmentWeight(pounds, ounces) {
+    const parts = [];
+    if (pounds > 0) parts.push(`${pounds} lb`);
+    parts.push(`${ounces} oz`);
+    return parts.join(" ");
+  }
+
+  function renderRateSummary(rates) {
+    if (!rateSummaryEl) return;
+    rateSummaryEl.innerHTML = "";
+
+    if (!rates.length) {
+      rateSummaryEl.innerHTML = `<div class="border rounded p-3 small text-secondary text-center">No USPS rates loaded yet. Save a USPS User ID, enter shipment details, and run the builder when you want a live quote.</div>`;
       return;
     }
-    if (!/^\d{5}$/.test(origin) || !/^\d{5}$/.test(destination)) {
-      statusEl.textContent = "Origin and destination must be 5-digit ZIP codes.";
-      return;
-    }
-    if (!Number.isFinite(totalOz) || totalOz <= 0) {
-      statusEl.textContent = "Enter a valid package weight in ounces.";
+
+    rates.slice(0, 4).forEach((rate) => {
+      const row = document.createElement("div");
+      row.className = "border rounded p-2 d-flex justify-content-between align-items-center";
+      row.innerHTML = `<span>${escapeHtml(rate.service)}</span><span class="fw-semibold">$${Number(rate.rate).toFixed(2)}</span>`;
+      rateSummaryEl.appendChild(row);
+    });
+  }
+
+  function buildOutputs(state, uspsState = getUspsState(), rates = latestRates) {
+    const shippingSpeed = labelMaps.shippingSpeed[state.shippingSpeed] || labelMaps.shippingSpeed["next-business-day"];
+    const handlingTime = labelMaps.handlingTime[state.handlingTime] || labelMaps.handlingTime["one-day"];
+    const packagingStyle = labelMaps.packagingStyle[state.packagingStyle] || labelMaps.packagingStyle["clean-folded"];
+    const disclosure = labelMaps.disclosureStyle[state.disclosureStyle] || labelMaps.disclosureStyle.standard;
+    const bundle = labelMaps.combinedShipping[state.combinedShipping] || labelMaps.combinedShipping.encouraged;
+    const thankYou = labelMaps.thankYouTone[state.thankYouTone] || labelMaps.thankYouTone.warm;
+    const weight = normalizeShipmentWeight(uspsState.pounds, uspsState.ounces);
+    const weightLabel = formatShipmentWeight(weight.pounds, weight.ounces);
+    const cheapestRate = rates[0] || null;
+
+    const laneText = uspsState.originZip && uspsState.destinationZip
+      ? `from ZIP ${uspsState.originZip} to ZIP ${uspsState.destinationZip}`
+      : "for the shipment lane entered";
+
+    const uspsRateLine = cheapestRate
+      ? `For a ${weightLabel} package ${laneText}, current USPS options start at $${Number(cheapestRate.rate).toFixed(2)} via ${cheapestRate.service}.`
+      : `USPS quote details can be added once live rates are fetched for a ${weightLabel} package ${laneText}.`;
+
+    return {
+      shipping: `Shipping template:\nThis order ships ${shippingSpeed} with ${handlingTime}. It will be ${packagingStyle}, sent with tracking, and prepared using USPS service options when available.\n\n${uspsRateLine}\n\nPaste-ready note:\nShips ${shippingSpeed}. Packed ${packagingStyle}. Tracking updates once USPS accepts the shipment.`,
+      condition: `Condition disclosure template:\n${disclosure}\n\nPaste-ready note:\nPre-owned item. Please review all photos closely. Add specific flaw details here: [insert flaw details].`,
+      bundle: `Bundle / offer template:\n${bundle}\n\nPaste-ready note:\nBundle requests and reasonable offers are welcome. Combined shipping can be reviewed before purchase when it reduces total shipping cost.`,
+      thanks: `Thank-you / packaging template:\n${thankYou}\n\nPaste-ready note:\nThank you for your order. Your package is being ${packagingStyle} and will ship ${shippingSpeed}. Tracking will update once USPS accepts the shipment.`,
+      listingNotes: `Marketplace-neutral listing notes:\nPlease review photos, measurements, and condition notes before purchasing. Color may vary slightly by screen. Ships ${shippingSpeed} with ${handlingTime}. Add item-specific details here: [insert measurements, materials, flaws, or fit notes].`,
+    };
+  }
+
+  function renderOutputs() {
+    const built = buildOutputs(getReusableState(), getUspsState(), latestRates);
+    outputs.shipping.textContent = built.shipping;
+    outputs.condition.textContent = built.condition;
+    outputs.bundle.textContent = built.bundle;
+    outputs.thanks.textContent = built.thanks;
+    outputs.listingNotes.textContent = built.listingNotes;
+    return built;
+  }
+
+  function renderSavedTemplates() {
+    const templates = getSmartTemplates();
+    savedListEl.innerHTML = "";
+
+    if (!templates.length) {
+      savedListEl.innerHTML = `<div class="saved-template-empty">Save the copy blocks you use most so they are ready the next time you prep listings.</div>`;
       return;
     }
 
-    const pounds = Math.floor(totalOz / 16);
-    const ounces = Math.round(totalOz % 16);
+    templates.forEach((template) => {
+      const kindLabel = {
+        shipping: "USPS Shipping Template",
+        condition: "Condition Disclosure",
+        bundle: "Bundle / Offer Language",
+        thanks: "Thank-You Note",
+        "listing-notes": "Listing Notes",
+      }[template.kind] || "Template";
 
-    statusEl.textContent = "Fetching USPS rates...";
-    try {
-      const rates = await fetchUspsRates({
-        userId,
-        originZip: origin,
-        destinationZip: destination,
-        pounds,
-        ounces,
+      const card = document.createElement("article");
+      card.className = "saved-template-card";
+      card.innerHTML = `
+        <div class="saved-template-card__header">
+          <div>
+            <p class="saved-template-card__name mb-1">${escapeHtml(template.name || "Untitled Template")}</p>
+            <p class="saved-template-card__meta mb-0">${escapeHtml(kindLabel)} · Updated ${escapeHtml(formatDate(template.updatedAt))}</p>
+          </div>
+          <span class="dashboard-sku">${escapeHtml(kindLabel)}</span>
+        </div>
+        <pre class="saved-template-card__preview">${escapeHtml(template.text || "")}</pre>
+        <div class="saved-template-card__actions">
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-apply-template="${escapeHtml(template.id)}">Apply Inputs</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-copy-template="${escapeHtml(template.id)}">Copy</button>
+          <button class="btn btn-outline-danger btn-sm" type="button" data-delete-template="${escapeHtml(template.id)}">Delete</button>
+        </div>
+      `;
+
+      card.querySelector("[data-apply-template]").addEventListener("click", () => {
+        applyReusableState(template.variables || defaultState);
+        renderOutputs();
+        savedStatusEl.textContent = `${template.name || "Template"} applied to the workspace.`;
       });
 
-      if (!rates.length) {
-        statusEl.textContent = "No USPS rates returned. Try different values.";
+      card.querySelector("[data-copy-template]").addEventListener("click", async () => {
+        const ok = await copyText(template.text || "");
+        savedStatusEl.textContent = ok ? `${template.name || "Template"} copied.` : "Copy failed. Select and copy manually.";
+      });
+
+      card.querySelector("[data-delete-template]").addEventListener("click", () => {
+        removeSmartTemplate(template.id);
+        renderSavedTemplates();
+        savedStatusEl.textContent = "Saved template deleted.";
+      });
+
+      savedListEl.appendChild(card);
+    });
+  }
+
+  buildTemplateWorkspaceBtn.addEventListener("click", () => {
+    renderOutputs();
+    statusEl.textContent = "Reusable copy refreshed.";
+  });
+
+  resetTemplateWorkspaceBtn.addEventListener("click", () => {
+    applyReusableState(defaultState);
+    latestRates = [];
+    renderRateSummary(latestRates);
+    renderOutputs();
+    statusEl.textContent = "Template inputs reset.";
+  });
+
+  [
+    fields.shippingSpeed,
+    fields.handlingTime,
+    fields.packagingStyle,
+    fields.disclosureStyle,
+    fields.combinedShipping,
+    fields.thankYouTone,
+    fields.originZip,
+    fields.destinationZip,
+    fields.pounds,
+    fields.ounces,
+  ].forEach((field) => {
+    if (!field) return;
+    field.addEventListener("input", renderOutputs);
+    field.addEventListener("change", renderOutputs);
+  });
+
+  if (fields.uspsUserId) {
+    fields.uspsUserId.value = getUspsUserId();
+  }
+
+  if (saveUspsUserIdBtn) {
+    saveUspsUserIdBtn.addEventListener("click", () => {
+      const userId = fields.uspsUserId?.value.trim() || "";
+      if (!userId) {
+        shippingStatusEl.textContent = "Enter a USPS User ID before saving.";
+        return;
+      }
+      saveUspsUserId(userId);
+      shippingStatusEl.textContent = "USPS User ID saved locally in this browser.";
+    });
+  }
+
+  if (buildShippingTemplateBtn) {
+    buildShippingTemplateBtn.addEventListener("click", async () => {
+      const uspsState = getUspsState();
+      const { pounds, ounces } = normalizeShipmentWeight(uspsState.pounds, uspsState.ounces);
+
+      if (!uspsState.userId) {
+        shippingStatusEl.textContent = "Enter and save a USPS User ID before fetching rates.";
+        renderOutputs();
+        return;
+      }
+      if (uspsState.originZip.length !== 5 || uspsState.destinationZip.length !== 5) {
+        shippingStatusEl.textContent = "Enter valid 5-digit origin and destination ZIP codes.";
+        renderOutputs();
         return;
       }
 
-      const best = rates[0];
-      summaryEl.textContent = `Lowest USPS option: ${best.service} at $${best.rate.toFixed(2)}.`;
+      shippingStatusEl.textContent = "Fetching USPS rates and rebuilding the shipping template...";
+      saveUspsUserId(uspsState.userId);
 
-      previewEl.textContent = [
-        `Shipping: Ships from ${origin} to ${destination} via ${best.service}.`,
-        `Estimated USPS postage: $${best.rate.toFixed(2)} (package weight: ${totalOz} oz).`,
-        "I ship quickly with tracking included.",
-      ].join("\n");
+      try {
+        latestRates = await fetchUspsRates({
+          userId: uspsState.userId,
+          originZip: uspsState.originZip,
+          destinationZip: uspsState.destinationZip,
+          pounds,
+          ounces,
+        });
+        renderRateSummary(latestRates);
+        renderOutputs();
+        shippingStatusEl.textContent = latestRates.length
+          ? "USPS rates loaded and shipping template updated."
+          : "No USPS services returned for that shipment. Shipping template updated without live rates.";
+      } catch (error) {
+        latestRates = [];
+        renderRateSummary(latestRates);
+        renderOutputs();
+        shippingStatusEl.textContent = "USPS lookup failed. Confirm your USPS User ID, ZIP codes, shipment weight, and browser network access.";
+      }
+    });
+  }
 
-      statusEl.textContent = "Shipping template generated.";
-    } catch {
-      statusEl.textContent = "USPS rate lookup failed right now. Try again later.";
-    }
+  if (copyShippingTemplateBtn) {
+    copyShippingTemplateBtn.addEventListener("click", async () => {
+      const ok = await copyText(outputs.shipping?.textContent || "");
+      shippingStatusEl.textContent = ok ? "Shipping template copied." : "Copy failed. Select and copy manually.";
+    });
+  }
+
+  document.querySelectorAll(".template-copy-btn").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const target = document.getElementById(button.getAttribute("data-copy-target"));
+      const ok = await copyText(target?.textContent || "");
+      statusEl.textContent = ok ? "Template copied." : "Copy failed. Select and copy manually.";
+    });
   });
 
-  $("#copyShippingTemplateBtn").addEventListener("click", async () => {
-    const ok = await copyText(previewEl.textContent || "");
-    statusEl.textContent = ok ? "Shipping template copied." : "Copy failed. Select and copy manually.";
+  document.querySelectorAll(".template-save-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = document.getElementById(button.getAttribute("data-save-target"));
+      const kind = button.getAttribute("data-save-kind") || "template";
+      const text = String(target?.textContent || "").trim();
+      if (!text) {
+        statusEl.textContent = "Generate template text before saving.";
+        return;
+      }
+      const name = window.prompt("Name this reusable template:");
+      if (!name) return;
+
+      upsertSmartTemplate({
+        id: uid(),
+        name: name.trim(),
+        kind,
+        text,
+        variables: getReusableState(),
+        updatedAt: new Date().toISOString(),
+      });
+      renderSavedTemplates();
+      savedStatusEl.textContent = `${name.trim()} saved to LocalStorage.`;
+    });
   });
+
+  applyReusableState(defaultState);
+  renderRateSummary(latestRates);
+  renderOutputs();
+  renderSavedTemplates();
 }
 
 function initAboutPage() {
@@ -1202,10 +1626,10 @@ function initFeaturesPage() {
   const items = [
     { label: "5 essential required inputs in Create Listing", ok: true },
     { label: "Formula pricing helper available", ok: typeof getSuggestedRange === "function" },
-    { label: "eBay comps capability enabled", ok: ENABLE_LIVE_EBAY_COMPS || ENABLE_DEMO_EBAY_COMPS },
-    { label: "USPS smart templates page available", ok: true },
-    { label: "LocalStorage draft/listing persistence", ok: typeof localStorage !== "undefined" },
-    { label: "Dashboard CSV export", ok: typeof exportCSV === "function" },
+    { label: "eBay comps support available", ok: ENABLE_LIVE_EBAY_COMPS || ENABLE_DEMO_EBAY_COMPS },
+    { label: "Smart templates workspace available", ok: true },
+    { label: "Local draft and listing storage", ok: typeof localStorage !== "undefined" },
+    { label: "Dashboard export tools", ok: typeof exportCSV === "function" },
   ];
 
   const list = $("#featureStatusList");
@@ -1224,7 +1648,7 @@ function initHowItWorksPage() {
   function renderDraft() {
     const draft = loadDraft();
     if (!draft) {
-      $("#howDraftSummary").textContent = "No draft available.";
+      $("#howDraftSummary").textContent = "No active draft yet. Start a listing to see progress here.";
       return;
     }
 
@@ -1326,35 +1750,33 @@ function initIntegrationsPage() {
   if (!pageHas("#integrationChecklist")) return;
 
   const checklist = $("#integrationChecklist");
-  const uspsSaved = Boolean(getUspsUserId());
+  function renderChecklist() {
+    const rows = [
+      { label: "Saved listings in this browser", value: String(getListings().length) },
+      { label: "Draft recovery", value: loadDraft() ? "Available" : "No active draft" },
+      { label: "Smart templates saved locally", value: String(getSmartTemplates().length) },
+      { label: "Optional live eBay comps", value: ENABLE_LIVE_EBAY_COMPS ? "Enabled" : "Off" },
+      { label: "Demo comps fallback", value: ENABLE_DEMO_EBAY_COMPS ? "Available" : "Off" },
+    ];
 
-  const rows = [
-    { label: "eBay live mode", value: ENABLE_LIVE_EBAY_COMPS ? "Enabled" : "Disabled" },
-    { label: "eBay fallback comps mode", value: ENABLE_DEMO_EBAY_COMPS ? "Enabled" : "Disabled" },
-    { label: "USPS User ID stored locally", value: uspsSaved ? "Yes" : "No" },
-  ];
+    checklist.innerHTML = "";
+    rows.forEach((row) => {
+      const el = document.createElement("div");
+      el.className = "border rounded p-2 d-flex justify-content-between align-items-center";
+      el.innerHTML = `<span>${escapeHtml(row.label)}</span><span class="fw-semibold">${escapeHtml(row.value)}</span>`;
+      checklist.appendChild(el);
+    });
+  }
 
-  checklist.innerHTML = "";
-  rows.forEach((row) => {
-    const el = document.createElement("div");
-    el.className = "border rounded p-2 d-flex justify-content-between align-items-center";
-    el.innerHTML = `<span>${escapeHtml(row.label)}</span><span class="fw-semibold">${escapeHtml(row.value)}</span>`;
-    checklist.appendChild(el);
-  });
+  renderChecklist();
 
   const status = $("#integrationCheckStatus");
   const btn = $("#runIntegrationCheckBtn");
   if (!btn) return;
 
-  btn.addEventListener("click", async () => {
-    status.textContent = "Running basic integration checks...";
-    try {
-      // Lightweight availability check endpoint
-      await fetch("https://api.allorigins.win/get?url=https://www.ebay.com", { method: "GET" });
-      status.textContent = "Check complete. Browser can reach proxy endpoint; API behavior depends on credentials and provider limits.";
-    } catch {
-      status.textContent = "Check failed. Network or CORS restrictions may prevent live API behavior.";
-    }
+  btn.addEventListener("click", () => {
+    renderChecklist();
+    status.textContent = "Readiness check complete. Local saving, templates, and dashboard tools are available in this browser.";
   });
 }
 
@@ -1364,60 +1786,224 @@ function initDashboardPage() {
   const tbody = $("#listingsTableBody");
   const emptyState = $("#emptyState");
   const dashboardStatus = $("#dashboardStatus");
+  const dashboardSearch = $("#dashboardSearch");
   const statusFilter = $("#statusFilter");
+  const categoryFilter = $("#categoryFilter");
+  const sortFilter = $("#sortFilter");
   const selectAll = $("#selectAllListings");
+  const selectionCount = $("#selectionCount");
+  const summaryTotal = $("#summaryTotal");
+  const summaryDrafts = $("#summaryDrafts");
+  const summaryReady = $("#summaryReady");
+  const summaryListed = $("#summaryListed");
+  const summarySold = $("#summarySold");
+
+  function normalizeListingRecord(listing) {
+    return {
+      ...listing,
+      status: normalizeStatus(listing.status),
+      createdAt: listing.createdAt || listing.updatedAt || new Date().toISOString(),
+      updatedAt: listing.updatedAt || listing.createdAt || new Date().toISOString(),
+    };
+  }
+
+  function getAllListings() {
+    return getListings().map(normalizeListingRecord);
+  }
 
   function getSelectedListingIds() {
     return [...tbody.querySelectorAll("input[data-select-id]:checked")].map((el) => el.getAttribute("data-select-id"));
   }
 
-  function getFilteredListings() {
-    const listings = getListings();
-    const filter = normalizeStatus(statusFilter?.value === "all" ? "" : statusFilter?.value);
-    if (!statusFilter || statusFilter.value === "all") return listings;
-    return listings.filter((listing) => normalizeStatus(listing.status) === filter);
+  function syncSelectionMeta() {
+    const count = getSelectedListingIds().length;
+    if (selectionCount) selectionCount.textContent = `${count} selected`;
+    if (selectAll) {
+      const checkboxes = [...tbody.querySelectorAll("input[data-select-id]")];
+      const checked = checkboxes.filter((checkbox) => checkbox.checked).length;
+      selectAll.checked = Boolean(checkboxes.length) && checked === checkboxes.length;
+      selectAll.indeterminate = checked > 0 && checked < checkboxes.length;
+    }
+  }
+
+  function updateSummary(listings) {
+    const total = listings.length;
+    const counts = listings.reduce((acc, listing) => {
+      acc[normalizeStatus(listing.status)] = (acc[normalizeStatus(listing.status)] || 0) + 1;
+      return acc;
+    }, {});
+    if (summaryTotal) summaryTotal.textContent = String(total);
+    if (summaryDrafts) summaryDrafts.textContent = String(counts.draft || 0);
+    if (summaryReady) summaryReady.textContent = String(counts.ready || 0);
+    if (summaryListed) summaryListed.textContent = String(counts.listed || 0);
+    if (summarySold) summarySold.textContent = String(counts.sold || 0);
+  }
+
+  function renderCategoryOptions(listings) {
+    if (!categoryFilter) return;
+    const categories = [...new Set(
+      listings
+        .map((listing) => listing.category)
+        .filter(Boolean)
+    )].sort((a, b) => prettyCategory(a).localeCompare(prettyCategory(b)));
+    const previous = categoryFilter.value || "all";
+    categoryFilter.innerHTML = '<option value="all">All Categories</option>';
+    categories.forEach((category) => {
+      const option = document.createElement("option");
+      option.value = category;
+      option.textContent = prettyCategory(category);
+      categoryFilter.appendChild(option);
+    });
+    categoryFilter.value = categories.includes(previous) || previous === "all" ? previous : "all";
+  }
+
+  function getVisibleListings() {
+    const statusValue = statusFilter?.value || "all";
+    const categoryValue = categoryFilter?.value || "all";
+    const searchTerm = normalize(dashboardSearch?.value);
+    const sortValue = sortFilter?.value || "newest";
+
+    let listings = getAllListings();
+
+    if (statusValue !== "all") {
+      listings = listings.filter((listing) => normalizeStatus(listing.status) === normalizeStatus(statusValue));
+    }
+
+    if (categoryValue !== "all") {
+      listings = listings.filter((listing) => listing.category === categoryValue);
+    }
+
+    if (searchTerm) {
+      listings = listings.filter((listing) => {
+        const haystack = [
+          listing.itemName,
+          listing.brand,
+          prettyCategory(listing.category),
+          getListingSku(listing),
+        ].map(normalize).join(" ");
+        return haystack.includes(searchTerm);
+      });
+    }
+
+    listings.sort((a, b) => {
+      if (sortValue === "oldest") {
+        return new Date(a.createdAt).valueOf() - new Date(b.createdAt).valueOf();
+      }
+      if (sortValue === "priceHigh") {
+        return Number(b.price || 0) - Number(a.price || 0);
+      }
+      if (sortValue === "priceLow") {
+        return Number(a.price || 0) - Number(b.price || 0);
+      }
+      if (sortValue === "status") {
+        return prettyStatus(a.status).localeCompare(prettyStatus(b.status))
+          || new Date(b.updatedAt).valueOf() - new Date(a.updatedAt).valueOf();
+      }
+      return new Date(b.createdAt).valueOf() - new Date(a.createdAt).valueOf();
+    });
+
+    return listings;
+  }
+
+  function getStatusBadge(status) {
+    const clean = normalizeStatus(status);
+    const label = prettyStatus(clean);
+    return `<span class="dashboard-status-badge dashboard-status-badge--${clean}">${escapeHtml(label)}</span>`;
+  }
+
+  function renderEmptyState() {
+    const hasFilters = Boolean(
+      normalize(dashboardSearch?.value)
+      || (statusFilter && statusFilter.value !== "all")
+      || (categoryFilter && categoryFilter.value !== "all")
+    );
+    emptyState.innerHTML = hasFilters
+      ? `<p class="mb-1">No listings match the current search or filters.</p><p class="mb-0">Try clearing filters or adjusting your search terms.</p>`
+      : `<p class="mb-1">This dashboard is your local resale workspace.</p><p class="mb-0">Use it to track drafts, organize listings, and export prep-ready inventory.</p><a class="btn btn-dark mt-2" href="new-listing.html">Start a Listing</a>`;
   }
 
   function render() {
-    const listings = getFilteredListings();
+    const allListings = getAllListings();
+    updateSummary(allListings);
+    renderCategoryOptions(allListings);
+
+    const listings = getVisibleListings();
     tbody.innerHTML = "";
-    if (selectAll) selectAll.checked = false;
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    }
 
     if (!listings.length) {
-      emptyState.textContent = statusFilter?.value && statusFilter.value !== "all"
-        ? "No listings match this status filter."
-        : "No listings saved yet. Create one to get started.";
+      renderEmptyState();
+      syncSelectionMeta();
       return;
     }
 
-    emptyState.textContent = "";
+    emptyState.innerHTML = "";
 
     listings.forEach((listing) => {
       const statusValue = normalizeStatus(listing.status);
+      const sku = getListingSku(listing);
+      const updated = listing.updatedAt || listing.createdAt;
+      const notePreview = String(listing.notes || "").trim().slice(0, 92);
       const tr = document.createElement("tr");
+      tr.className = "dashboard-row";
       tr.innerHTML = `
         <td><input class="form-check-input" type="checkbox" data-select-id="${escapeHtml(listing.id)}" aria-label="Select listing ${escapeHtml(listing.itemName || "Untitled")}" /></td>
-        <td><a href="listing.html?id=${encodeURIComponent(listing.id)}">${escapeHtml(listing.itemName || "Untitled")}</a></td>
-        <td>${escapeHtml(listing.brand || "")}</td>
-        <td>${escapeHtml(prettyCategory(listing.category))}</td>
-        <td>${escapeHtml(prettyCondition(listing.condition))}</td>
         <td>
-          <select class="form-select form-select-sm" data-status-id="${escapeHtml(listing.id)}" aria-label="Status for ${escapeHtml(listing.itemName || "Untitled")}">
-            <option value="draft" ${statusValue === "draft" ? "selected" : ""}>Draft</option>
-            <option value="ready" ${statusValue === "ready" ? "selected" : ""}>Ready</option>
-            <option value="listed" ${statusValue === "listed" ? "selected" : ""}>Listed</option>
-            <option value="sold" ${statusValue === "sold" ? "selected" : ""}>Sold</option>
-          </select>
+          <div class="dashboard-item-cell">
+            <a class="dashboard-item-title" href="listing.html?id=${encodeURIComponent(listing.id)}">${escapeHtml(listing.itemName || "Untitled")}</a>
+            <div class="dashboard-item-meta">${escapeHtml(listing.brand || "No brand")} · ${escapeHtml(prettyCondition(listing.condition))}</div>
+            <div class="dashboard-item-note">${escapeHtml(notePreview || "No notes yet.")}</div>
+          </div>
         </td>
-        <td>$${Number(listing.price || 0).toFixed(2)}</td>
-        <td>${escapeHtml(formatDate(listing.createdAt))}</td>
-        <td><button class="btn btn-sm btn-outline-danger" data-del="${escapeHtml(listing.id)}" type="button" aria-label="Delete ${escapeHtml(listing.itemName || "Untitled")}">Delete</button></td>
+        <td><span class="dashboard-sku">${escapeHtml(sku)}</span></td>
+        <td>${escapeHtml(prettyCategory(listing.category))}</td>
+        <td>
+          <div class="dashboard-status-cell">
+            ${getStatusBadge(statusValue)}
+            <select class="form-select form-select-sm" data-status-id="${escapeHtml(listing.id)}" aria-label="Quick status change for ${escapeHtml(listing.itemName || "Untitled")}">
+              <option value="draft" ${statusValue === "draft" ? "selected" : ""}>Draft</option>
+              <option value="ready" ${statusValue === "ready" ? "selected" : ""}>Ready to List</option>
+              <option value="listed" ${statusValue === "listed" ? "selected" : ""}>Listed</option>
+              <option value="sold" ${statusValue === "sold" ? "selected" : ""}>Sold</option>
+            </select>
+          </div>
+        </td>
+        <td><span class="dashboard-price">$${Number(listing.price || 0).toFixed(2)}</span></td>
+        <td><span title="${escapeHtml(formatDateTime(listing.createdAt))}">${escapeHtml(formatDate(listing.createdAt))}</span></td>
+        <td><span title="${escapeHtml(formatDateTime(updated))}">${escapeHtml(formatDate(updated))}</span></td>
+        <td>
+          <div class="dashboard-actions">
+            <a class="btn btn-sm btn-outline-secondary" href="listing.html?id=${encodeURIComponent(listing.id)}">View</a>
+            <button class="btn btn-sm btn-outline-secondary" data-edit="${escapeHtml(listing.id)}" type="button">Edit</button>
+            <button class="btn btn-sm btn-outline-secondary" data-dup="${escapeHtml(listing.id)}" type="button">Duplicate</button>
+            <button class="btn btn-sm btn-outline-danger" data-del="${escapeHtml(listing.id)}" type="button" aria-label="Delete ${escapeHtml(listing.itemName || "Untitled")}">Delete</button>
+          </div>
+        </td>
       `;
+
+      tr.querySelector("[data-select-id]").addEventListener("change", syncSelectionMeta);
 
       tr.querySelector("[data-status-id]").addEventListener("change", (event) => {
         const nextStatus = normalizeStatus(event.target.value);
         updateListing(listing.id, { status: nextStatus });
         dashboardStatus.textContent = `Status updated to ${prettyStatus(nextStatus)}.`;
+        render();
+      });
+
+      tr.querySelector("[data-edit]").addEventListener("click", () => {
+        saveDraft({
+          ...listing,
+          __editingId: listing.id,
+        });
+        window.location.href = "new-listing.html";
+      });
+
+      tr.querySelector("[data-dup]").addEventListener("click", () => {
+        const duplicate = duplicateListing(listing.id);
+        dashboardStatus.textContent = duplicate ? "Listing duplicated as a draft." : "Could not duplicate listing.";
         render();
       });
 
@@ -1430,28 +2016,30 @@ function initDashboardPage() {
 
       tbody.appendChild(tr);
     });
+
+    syncSelectionMeta();
   }
 
   $("#exportBtn").addEventListener("click", () => {
-    const listings = getFilteredListings();
+    const listings = getAllListings();
     if (!listings.length) {
-      dashboardStatus.textContent = "No listings to export.";
+      dashboardStatus.textContent = "No saved inventory to export.";
       return;
     }
     exportCSV(listings);
-    dashboardStatus.textContent = "CSV export started.";
+    dashboardStatus.textContent = "All inventory exported as CSV.";
   });
 
   const exportJsonBtn = $("#exportJsonBtn");
   if (exportJsonBtn) {
     exportJsonBtn.addEventListener("click", () => {
-      const listings = getFilteredListings();
+      const listings = getAllListings();
       if (!listings.length) {
-        dashboardStatus.textContent = "No listings to export.";
+        dashboardStatus.textContent = "No saved inventory to export.";
         return;
       }
       exportJSON(listings);
-      dashboardStatus.textContent = "JSON export started.";
+      dashboardStatus.textContent = "All inventory exported as JSON.";
     });
   }
 
@@ -1459,13 +2047,13 @@ function initDashboardPage() {
   if (exportSelectedBtn) {
     exportSelectedBtn.addEventListener("click", () => {
       const selectedIds = new Set(getSelectedListingIds());
-      const selected = getFilteredListings().filter((listing) => selectedIds.has(listing.id));
+      const selected = getVisibleListings().filter((listing) => selectedIds.has(listing.id));
       if (!selected.length) {
-        dashboardStatus.textContent = "Select at least one listing to export.";
+        dashboardStatus.textContent = "Select at least one visible listing to export.";
         return;
       }
       exportCSV(selected);
-      dashboardStatus.textContent = "Selected CSV export started.";
+      dashboardStatus.textContent = "Selected inventory exported as CSV.";
     });
   }
 
@@ -1473,18 +2061,30 @@ function initDashboardPage() {
   if (exportSelectedJsonBtn) {
     exportSelectedJsonBtn.addEventListener("click", () => {
       const selectedIds = new Set(getSelectedListingIds());
-      const selected = getFilteredListings().filter((listing) => selectedIds.has(listing.id));
+      const selected = getVisibleListings().filter((listing) => selectedIds.has(listing.id));
       if (!selected.length) {
-        dashboardStatus.textContent = "Select at least one listing to export.";
+        dashboardStatus.textContent = "Select at least one visible listing to export.";
         return;
       }
       exportJSON(selected);
-      dashboardStatus.textContent = "Selected JSON export started.";
+      dashboardStatus.textContent = "Selected inventory exported as JSON.";
     });
+  }
+
+  if (dashboardSearch) {
+    dashboardSearch.addEventListener("input", render);
   }
 
   if (statusFilter) {
     statusFilter.addEventListener("change", render);
+  }
+
+  if (categoryFilter) {
+    categoryFilter.addEventListener("change", render);
+  }
+
+  if (sortFilter) {
+    sortFilter.addEventListener("change", render);
   }
 
   if (selectAll) {
@@ -1493,6 +2093,7 @@ function initDashboardPage() {
       tbody.querySelectorAll("input[data-select-id]").forEach((checkbox) => {
         checkbox.checked = checked;
       });
+      syncSelectionMeta();
     });
   }
 

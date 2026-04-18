@@ -61,19 +61,21 @@
     <section class="card mb-4">
       <div class="card-body">
         <h1 class="h3">How It Works</h1>
-        <ol class="mb-0">
-          <li>Enter the 5 essential inputs on Create Listing: Item Name, Brand, Category, Condition, and Price.</li>
-          <li>Use Formula Pricing and optional eBay comp search to refine price and keyword confidence.</li>
-          <li>Review live preview and export text, then save to Dashboard and export CSV as needed.</li>
+        <p class="text-secondary mb-3">Listing Lab follows the same 4-step workflow across the app, built around five essential item details.</p>
+        <ol class="mb-0 ps-3">
+          <li class="mb-2">Enter the essentials on Create Listing: Item Name, Brand, Category, Condition, and Price.</li>
+          <li class="mb-2">Use the pricing helpers to set a suggested range, target list price, and profit check.</li>
+          <li class="mb-2">Build copy from the live preview, sectioned copy text, and smart templates workspace.</li>
+          <li>Save the record to Dashboard, update status as it moves, and export when you need a file.</li>
         </ol>
       </div>
     </section>
 
     <section class="card">
       <div class="card-body">
-        <h2 class="h5">Draft Snapshot</h2>
-        <p id="howDraftSummary" class="text-secondary mb-3">No draft available.</p>
-        <button class="btn btn-outline-secondary" id="refreshHowDraftBtn" type="button">Refresh Draft Snapshot</button>
+        <h2 class="h5">Current Draft Check</h2>
+        <p id="howDraftSummary" class="text-secondary mb-3">No active draft yet. Start a listing to see progress here.</p>
+        <button class="btn btn-outline-secondary" id="refreshHowDraftBtn" type="button">Refresh Draft Check</button>
       </div>
     </section>
   </main>
@@ -87,8 +89,8 @@
               <span class="brand-mark" aria-hidden="true"></span>
             </span>
           </p>
-          <p class="small text-secondary mb-0">A complete pre-listing workflow for resellers to price, write, and organize listings faster.</p>
-          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Get Started</a>
+          <p class="small text-secondary mb-0">Local resale prep workspace for pricing, listing copy, and inventory tracking.</p>
+          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Start a Listing</a>
         </div>
         <div class="col-6 col-lg-2">
           <p class="small text-uppercase text-secondary mb-2">Product</p>
@@ -133,7 +135,7 @@
       <i class="bi bi-stars" aria-hidden="true"></i>
       <span>Create</span>
     </a>
-    <a class="mobile-bottom-nav__item mobile-bottom-nav__item--compare" href="pricing.html" aria-current="page">
+    <a class="mobile-bottom-nav__item mobile-bottom-nav__item--compare" href="pricing.html">
       <i class="bi bi-graph-up-arrow" aria-hidden="true"></i>
       <span>Compare</span>
     </a>

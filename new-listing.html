@@ -256,51 +256,103 @@
         <div class="card listing-preview-card h-100 w-100">
           <div class="card-body d-flex flex-column">
             <h2 class="h4 mb-3">Live Preview</h2>
-            <div class="preview-photo-grid mb-3">
-              <div class="placeholder-photo" id="listingPhotoPlaceholder1" role="img" aria-label="Listing preview image 1">
-                <div class="preview-guidance-wrap">
-                  <p class="preview-guidance-title mb-2">Photo 1</p>
-                  <p class="preview-guidance-icon mb-2" aria-hidden="true"><i class="bi bi-image"></i></p>
-                  <ul class="preview-guidance-list mb-0">
-                    <li>Main view</li>
-                    <li>Centered</li>
-                    <li>Bright light</li>
-                  </ul>
-                </div>
-              </div>
-              <div class="placeholder-photo" id="listingPhotoPlaceholder2" role="img" aria-label="Listing preview image 2">
-                <div class="preview-guidance-wrap">
-                  <p class="preview-guidance-title mb-2">Photo 2</p>
-                  <p class="preview-guidance-icon mb-2" aria-hidden="true"><i class="bi bi-image"></i></p>
-                  <ul class="preview-guidance-list mb-0">
-                    <li>Tag close-up</li>
-                    <li>Size shown</li>
-                    <li>Text clear</li>
-                  </ul>
-                </div>
-              </div>
-              <div class="placeholder-photo" id="listingPhotoPlaceholder3" role="img" aria-label="Listing preview image 3">
-                <div class="preview-guidance-wrap">
-                  <p class="preview-guidance-title mb-2">Photo 3</p>
-                  <p class="preview-guidance-icon mb-2" aria-hidden="true"><i class="bi bi-image"></i></p>
-                  <ul class="preview-guidance-list mb-0">
-                    <li>Detail shot</li>
-                    <li>Show flaw</li>
-                    <li>Zoomed in</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <p class="small text-secondary mb-2">Photo preview auto-populates from your listing details (no upload required).</p>
-            <p id="listingCardTitle" class="fs-5 fw-semibold mb-1">Untitled item</p>
-            <p id="listingCardMeta" class="text-secondary mb-2">Brand • Category • Condition</p>
-            <p id="listingCardPrice" class="fs-4 fw-bold mb-3">$0.00</p>
-            <p id="listingCardNotes" class="text-secondary">Description preview will appear here.</p>
 
-            <h3 class="h6 mt-auto">Export Text</h3>
-            <pre id="exportPreview" class="bg-dark text-light rounded p-3 small mb-3"></pre>
+            <section class="preview-guidance-card mb-3" aria-label="Photo guidance checklist">
+              <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <div>
+                  <p class="preview-section-label mb-1">Photo Guidance Checklist</p>
+                  <p class="small text-secondary mb-0">Use these shots before posting to a marketplace.</p>
+                </div>
+              </div>
+              <div class="preview-photo-grid mb-0">
+                <div class="placeholder-photo" id="listingPhotoPlaceholder1" role="img" aria-label="Listing preview image 1">
+                  <div class="preview-guidance-wrap">
+                    <p class="preview-guidance-title mb-2">Photo 1</p>
+                    <p class="preview-guidance-icon mb-2" aria-hidden="true"><i class="bi bi-image"></i></p>
+                    <ul class="preview-guidance-list mb-0">
+                      <li>Main view</li>
+                      <li>Centered</li>
+                      <li>Bright light</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="placeholder-photo" id="listingPhotoPlaceholder2" role="img" aria-label="Listing preview image 2">
+                  <div class="preview-guidance-wrap">
+                    <p class="preview-guidance-title mb-2">Photo 2</p>
+                    <p class="preview-guidance-icon mb-2" aria-hidden="true"><i class="bi bi-image"></i></p>
+                    <ul class="preview-guidance-list mb-0">
+                      <li>Tag close-up</li>
+                      <li>Size shown</li>
+                      <li>Text clear</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="placeholder-photo" id="listingPhotoPlaceholder3" role="img" aria-label="Listing preview image 3">
+                  <div class="preview-guidance-wrap">
+                    <p class="preview-guidance-title mb-2">Photo 3</p>
+                    <p class="preview-guidance-icon mb-2" aria-hidden="true"><i class="bi bi-image"></i></p>
+                    <ul class="preview-guidance-list mb-0">
+                      <li>Detail shot</li>
+                      <li>Show flaw</li>
+                      <li>Zoomed in</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <h3 class="h6 mt-auto">Copy Text</h3>
+            <div class="export-copy-grid mb-3" aria-label="Copyable listing text sections">
+              <section class="export-copy-card">
+                <div class="export-copy-card__header">
+                  <p class="preview-section-label mb-0">Title</p>
+                  <button class="btn btn-outline-secondary btn-sm export-copy-btn" type="button" data-copy-target="exportTitle">Copy</button>
+                </div>
+                <pre id="exportTitle" class="export-copy-value mb-0"></pre>
+              </section>
+
+              <section class="export-copy-card">
+                <div class="export-copy-card__header">
+                  <p class="preview-section-label mb-0">Listing Price</p>
+                  <button class="btn btn-outline-secondary btn-sm export-copy-btn" type="button" data-copy-target="exportPrice">Copy</button>
+                </div>
+                <pre id="exportPrice" class="export-copy-value mb-0"></pre>
+              </section>
+
+              <section class="export-copy-card">
+                <div class="export-copy-card__header">
+                  <p class="preview-section-label mb-0">Description</p>
+                  <button class="btn btn-outline-secondary btn-sm export-copy-btn" type="button" data-copy-target="exportDescription">Copy</button>
+                </div>
+                <pre id="exportDescription" class="export-copy-value mb-0"></pre>
+              </section>
+
+              <section class="export-copy-card">
+                <div class="export-copy-card__header">
+                  <p class="preview-section-label mb-0">Seller Notes</p>
+                  <button class="btn btn-outline-secondary btn-sm export-copy-btn" type="button" data-copy-target="exportSellerNotes">Copy</button>
+                </div>
+                <pre id="exportSellerNotes" class="export-copy-value mb-0"></pre>
+              </section>
+
+              <section class="export-copy-card">
+                <div class="export-copy-card__header">
+                  <p class="preview-section-label mb-0">Hashtags</p>
+                  <button class="btn btn-outline-secondary btn-sm export-copy-btn" type="button" data-copy-target="exportHashtags">Copy</button>
+                </div>
+                <pre id="exportHashtags" class="export-copy-value mb-0"></pre>
+              </section>
+
+              <section class="export-copy-card export-copy-card--full">
+                <div class="export-copy-card__header">
+                  <p class="preview-section-label mb-0">Full Summary</p>
+                  <button class="btn btn-dark btn-sm" type="button" id="copyBtn">Copy Summary</button>
+                </div>
+                <pre id="exportPreview" class="export-copy-value export-copy-value--summary mb-0"></pre>
+              </section>
+            </div>
+
             <div class="preview-actions d-flex gap-2">
-              <button class="btn btn-dark" type="button" id="copyBtn">Copy Summary</button>
               <a class="btn btn-outline-secondary" href="dashboard.html">Go to Dashboard</a>
             </div>
           </div>
@@ -318,8 +370,8 @@
               <span class="brand-mark" aria-hidden="true"></span>
             </span>
           </p>
-          <p class="small text-secondary mb-0">A complete pre-listing workflow for resellers to price, write, and organize listings faster.</p>
-          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Get Started</a>
+          <p class="small text-secondary mb-0">Local resale prep workspace for pricing, listing copy, and inventory tracking.</p>
+          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Start a Listing</a>
         </div>
         <div class="col-6 col-lg-2">
           <p class="small text-uppercase text-secondary mb-2">Product</p>

@@ -59,46 +59,100 @@
 
   <main id="main-content" class="container py-4">
     <div class="dashboard-header d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-      <h1 class="h3 mb-0">Saved Listings</h1>
+      <div>
+        <h1 class="h3 mb-1">Inventory Workspace</h1>
+        <p class="text-secondary mb-0">Track drafts, prep listings, and keep resale inventory organized before you post anywhere.</p>
+      </div>
       <div class="d-flex flex-wrap gap-2">
-        <button id="exportBtn" class="btn btn-dark" type="button">Export CSV</button>
-        <button id="exportJsonBtn" class="btn btn-outline-secondary" type="button">Export JSON</button>
+        <button id="exportBtn" class="btn btn-dark" type="button">Export All CSV</button>
+        <button id="exportJsonBtn" class="btn btn-outline-secondary" type="button">Export All JSON</button>
         <button id="exportSelectedBtn" class="btn btn-outline-secondary" type="button">Export Selected CSV</button>
         <button id="exportSelectedJsonBtn" class="btn btn-outline-secondary" type="button">Export Selected JSON</button>
         <a class="btn btn-outline-secondary" href="new-listing.html">Create Listing</a>
       </div>
     </div>
 
+    <section class="dashboard-summary-grid mb-3" aria-label="Inventory summary">
+      <article class="dashboard-summary-card">
+        <p class="dashboard-summary-card__label mb-1">Total Saved</p>
+        <p id="summaryTotal" class="dashboard-summary-card__value mb-1">0</p>
+        <p class="dashboard-summary-card__meta mb-0">All inventory records saved locally.</p>
+      </article>
+      <article class="dashboard-summary-card">
+        <p class="dashboard-summary-card__label mb-1">Drafts</p>
+        <p id="summaryDrafts" class="dashboard-summary-card__value mb-1">0</p>
+        <p class="dashboard-summary-card__meta mb-0">Still being priced or written.</p>
+      </article>
+      <article class="dashboard-summary-card">
+        <p class="dashboard-summary-card__label mb-1">Ready to List</p>
+        <p id="summaryReady" class="dashboard-summary-card__value mb-1">0</p>
+        <p class="dashboard-summary-card__meta mb-0">Prepared for cross-listing.</p>
+      </article>
+      <article class="dashboard-summary-card">
+        <p class="dashboard-summary-card__label mb-1">Listed</p>
+        <p id="summaryListed" class="dashboard-summary-card__value mb-1">0</p>
+        <p class="dashboard-summary-card__meta mb-0">Active on a marketplace.</p>
+      </article>
+      <article class="dashboard-summary-card">
+        <p class="dashboard-summary-card__label mb-1">Sold</p>
+        <p id="summarySold" class="dashboard-summary-card__value mb-1">0</p>
+        <p class="dashboard-summary-card__meta mb-0">Completed inventory turnover.</p>
+      </article>
+    </section>
+
     <div class="dashboard-filters d-flex flex-wrap align-items-end gap-2 mb-3">
-      <div>
-        <label class="form-label mb-1" for="statusFilter">Filter Status</label>
+      <div class="dashboard-filter dashboard-filter--search">
+        <label class="form-label mb-1" for="dashboardSearch">Search Inventory</label>
+        <input class="form-control" id="dashboardSearch" type="search" placeholder="Search title, brand, category, or SKU" />
+      </div>
+      <div class="dashboard-filter">
+        <label class="form-label mb-1" for="sortFilter">Sort By</label>
+        <select class="form-select" id="sortFilter">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="priceHigh">Price high to low</option>
+          <option value="priceLow">Price low to high</option>
+          <option value="status">Status</option>
+        </select>
+      </div>
+      <div class="dashboard-filter">
+        <label class="form-label mb-1" for="statusFilter">Status</label>
         <select class="form-select" id="statusFilter">
           <option value="all">All Statuses</option>
           <option value="draft">Draft</option>
-          <option value="ready">Ready</option>
+          <option value="ready">Ready to List</option>
           <option value="listed">Listed</option>
           <option value="sold">Sold</option>
         </select>
       </div>
+      <div class="dashboard-filter">
+        <label class="form-label mb-1" for="categoryFilter">Category</label>
+        <select class="form-select" id="categoryFilter">
+          <option value="all">All Categories</option>
+        </select>
+      </div>
+      <div class="dashboard-selection-meta ms-auto">
+        <p id="selectionCount" class="small text-secondary mb-0">0 selected</p>
+      </div>
     </div>
 
     <p id="dashboardStatus" class="small text-secondary" role="status" aria-live="polite"></p>
-    <p id="emptyState" class="dashboard-empty-state text-secondary"></p>
+    <div id="emptyState" class="dashboard-empty-state text-secondary"></div>
 
     <div class="table-responsive dashboard-table-wrap">
-      <table class="table table-striped table-hover align-middle">
-        <caption class="visually-hidden">Saved listings with details and actions</caption>
+      <table class="table table-striped table-hover align-middle dashboard-table">
+        <caption class="visually-hidden">Saved resale listings with status, pricing, timestamps, and actions</caption>
         <thead>
           <tr>
             <th scope="col"><input id="selectAllListings" class="form-check-input" type="checkbox" aria-label="Select all listings" /></th>
-            <th scope="col">Title</th>
-            <th scope="col">Brand</th>
+            <th scope="col">Item</th>
+            <th scope="col">SKU</th>
             <th scope="col">Category</th>
-            <th scope="col">Condition</th>
             <th scope="col">Status</th>
             <th scope="col">Price</th>
             <th scope="col">Created</th>
-            <th scope="col">Action</th>
+            <th scope="col">Updated</th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody id="listingsTableBody"></tbody>
@@ -115,8 +169,8 @@
               <span class="brand-mark" aria-hidden="true"></span>
             </span>
           </p>
-          <p class="small text-secondary mb-0">A complete pre-listing workflow for resellers to price, write, and organize listings faster.</p>
-          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Get Started</a>
+          <p class="small text-secondary mb-0">Local resale prep workspace for pricing, listing copy, and inventory tracking.</p>
+          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Start a Listing</a>
         </div>
         <div class="col-6 col-lg-2">
           <p class="small text-uppercase text-secondary mb-2">Product</p>
