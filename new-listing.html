@@ -205,17 +205,42 @@
               <div class="card bg-light border-0 listing-subpanel mb-3">
                 <div class="card-body py-3">
                   <p class="small text-secondary mb-2">
-                    Pricing Helper: uses sold eBay comps when available for the current item. Otherwise it falls back to a local category, condition, and brand estimate.
+                    Pricing Helper: use real comps you find on eBay and Poshmark, then enter those prices here to calculate a comp median. If you do not enter comps, Listing Lab falls back to a local category, condition, and brand estimate.
                   </p>
                   <div class="row g-2 mb-3">
                     <div class="col-12 col-lg-4 d-grid">
                       <button class="btn btn-outline-secondary h-100" id="applyFormulaPriceBtn" type="button">Apply Formula Price</button>
                     </div>
                     <div class="col-12 col-lg-4 d-grid">
-                      <button class="btn btn-outline-secondary h-100" id="runCompSearchBtn" type="button">Search eBay Comps</button>
+                      <button class="btn btn-outline-secondary h-100" id="runCompSearchBtn" type="button">Open Market Search</button>
                     </div>
                     <div class="col-12 col-lg-4 d-grid">
-                      <button class="btn btn-outline-secondary h-100" id="applyCompPriceBtn" type="button">Apply Comp Price</button>
+                      <button class="btn btn-outline-secondary h-100" id="applyCompPriceBtn" type="button">Apply Comp Median</button>
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <p class="small text-secondary mb-2">Enter up to 5 real comp prices from sold listings or current market checks.</p>
+                    <div class="row g-2">
+                      <div class="col-6 col-lg">
+                        <label class="form-label visually-hidden" for="manualComp1">Comp 1</label>
+                        <input class="form-control manual-comp-input" id="manualComp1" type="number" min="0" step="0.01" placeholder="Comp 1" />
+                      </div>
+                      <div class="col-6 col-lg">
+                        <label class="form-label visually-hidden" for="manualComp2">Comp 2</label>
+                        <input class="form-control manual-comp-input" id="manualComp2" type="number" min="0" step="0.01" placeholder="Comp 2" />
+                      </div>
+                      <div class="col-6 col-lg">
+                        <label class="form-label visually-hidden" for="manualComp3">Comp 3</label>
+                        <input class="form-control manual-comp-input" id="manualComp3" type="number" min="0" step="0.01" placeholder="Comp 3" />
+                      </div>
+                      <div class="col-6 col-lg">
+                        <label class="form-label visually-hidden" for="manualComp4">Comp 4</label>
+                        <input class="form-control manual-comp-input" id="manualComp4" type="number" min="0" step="0.01" placeholder="Comp 4" />
+                      </div>
+                      <div class="col-6 col-lg">
+                        <label class="form-label visually-hidden" for="manualComp5">Comp 5</label>
+                        <input class="form-control manual-comp-input" id="manualComp5" type="number" min="0" step="0.01" placeholder="Comp 5" />
+                      </div>
                     </div>
                   </div>
                   <p id="formulaStatus" class="small text-secondary mt-2 mb-2" role="status" aria-live="polite"></p>
@@ -339,7 +364,7 @@
 
               <section class="export-copy-card">
                 <div class="export-copy-card__header">
-                  <p class="preview-section-label mb-0">Seller Notes</p>
+                  <p class="preview-section-label mb-0">Buyer Notes</p>
                   <button class="btn btn-outline-secondary btn-sm export-copy-btn" type="button" data-copy-target="exportSellerNotes">Copy</button>
                 </div>
                 <pre id="exportSellerNotes" class="export-copy-value mb-0"></pre>

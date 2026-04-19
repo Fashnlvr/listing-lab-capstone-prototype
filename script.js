@@ -1,8 +1,10 @@
 const STORAGE_KEYS = {
   listings: "listingLab:listings:v2",
   draft: "listingLab:draft:v2",
+  draftCursor: "listingLab:draftCursor:v1",
   uspsUserId: "listingLab:uspsUserId:v1",
   templates: "listingLab:templates:v1",
+  skuSettings: "listingLab:skuSettings:v1",
 };
 
 const LISTING_STATUSES = ["draft", "ready", "listed", "sold"];
@@ -41,6 +43,32 @@ const PREMIUM_BRANDS = new Set([
   "levi's",
   "abercrombie",
 ]);
+
+const SEO_STOPWORDS = new Set([
+  "the", "and", "with", "for", "from", "size", "style", "item", "this", "that", "womens", "women", "mens", "men",
+]);
+
+const CATEGORY_SEARCH_TERMS = {
+  tops: ["top", "shirt", "blouse", "tee"],
+  bottoms: ["pants", "jeans", "trousers", "bottoms"],
+  dresses: ["dress", "midi dress", "maxi dress", "mini dress"],
+  shoes: ["shoes", "sneakers", "boots", "heels"],
+  bags: ["bag", "handbag", "purse", "tote"],
+  outerwear: ["jacket", "coat", "blazer", "outerwear"],
+};
+
+const CONDITION_SEARCH_TERMS = {
+  new: ["new", "nwt"],
+  "like-new": ["like new", "excellent condition"],
+  good: ["preowned", "good condition"],
+  fair: ["as is", "well loved"],
+};
+
+const DEFAULT_SKU_SETTINGS = {
+  prefix: "LL",
+  nextNumber: 1,
+  digits: 4,
+};
 
 function $(selector) {
   return document.querySelector(selector);
@@ -186,7 +214,45 @@ function getListingById(id) {
   return getListings().find((listing) => listing.id === id);
 }
 
+function getSkuSettings() {
+  const raw = safeStorageGet(STORAGE_KEYS.skuSettings);
+  const parsed = raw ? safeJsonParse(raw, DEFAULT_SKU_SETTINGS) : DEFAULT_SKU_SETTINGS;
+  return {
+    prefix: String(parsed?.prefix || DEFAULT_SKU_SETTINGS.prefix).trim() || DEFAULT_SKU_SETTINGS.prefix,
+    nextNumber: Math.max(1, Number.parseInt(parsed?.nextNumber, 10) || DEFAULT_SKU_SETTINGS.nextNumber),
+    digits: Math.min(8, Math.max(1, Number.parseInt(parsed?.digits, 10) || DEFAULT_SKU_SETTINGS.digits)),
+  };
+}
+
+function saveSkuSettings(settings) {
+  const next = {
+    prefix: String(settings?.prefix || DEFAULT_SKU_SETTINGS.prefix).trim() || DEFAULT_SKU_SETTINGS.prefix,
+    nextNumber: Math.max(1, Number.parseInt(settings?.nextNumber, 10) || DEFAULT_SKU_SETTINGS.nextNumber),
+    digits: Math.min(8, Math.max(1, Number.parseInt(settings?.digits, 10) || DEFAULT_SKU_SETTINGS.digits)),
+  };
+  safeStorageSet(STORAGE_KEYS.skuSettings, JSON.stringify(next));
+  return next;
+}
+
+function formatCustomSku(number, settings = getSkuSettings()) {
+  const prefix = String(settings.prefix || DEFAULT_SKU_SETTINGS.prefix).trim();
+  const digits = Math.min(8, Math.max(1, Number.parseInt(settings.digits, 10) || DEFAULT_SKU_SETTINGS.digits));
+  const nextNumber = Math.max(1, Number.parseInt(number, 10) || 1);
+  return `${prefix}-${String(nextNumber).padStart(digits, "0")}`;
+}
+
+function allocateNextSku() {
+  const settings = getSkuSettings();
+  const sku = formatCustomSku(settings.nextNumber, settings);
+  saveSkuSettings({
+    ...settings,
+    nextNumber: settings.nextNumber + 1,
+  });
+  return sku;
+}
+
 function getListingSku(listing) {
+  if (listing?.sku) return listing.sku;
   const brand = normalize(listing?.brand).replace(/[^a-z0-9]/g, "").slice(0, 3).toUpperCase() || "LL";
   const category = normalize(listing?.category).replace(/[^a-z0-9]/g, "").slice(0, 3).toUpperCase() || "GEN";
   const idPart = String(listing?.id || "").replace(/[^a-z0-9]/gi, "").slice(-4).toUpperCase() || "0000";
@@ -202,6 +268,7 @@ function duplicateListing(id) {
     id: uid(),
     itemName: `${listing.itemName || "Untitled item"} Copy`,
     status: "draft",
+    sku: allocateNextSku(),
     createdAt: now,
     updatedAt: now,
   };
@@ -347,17 +414,62 @@ function appendUniqueNoteSections(existingText, sections) {
 }
 
 function saveDraft(draft) {
-  safeStorageSet(STORAGE_KEYS.draft, JSON.stringify(draft));
+  const nextDraft = draft ? { ...draft, savedAt: new Date().toISOString() } : null;
+  if (!nextDraft) return;
+
+  const queue = getDraftQueue().filter((item) => {
+    if (nextDraft.__editingId && item.__editingId) {
+      return item.__editingId !== nextDraft.__editingId;
+    }
+    return !(normalize(item.itemName) === normalize(nextDraft.itemName)
+      && normalize(item.brand) === normalize(nextDraft.brand)
+      && normalize(item.category) === normalize(nextDraft.category)
+      && normalize(item.condition) === normalize(nextDraft.condition)
+      && String(item.price || "") === String(nextDraft.price || ""));
+  });
+
+  queue.unshift(nextDraft);
+  safeStorageSet(STORAGE_KEYS.draft, JSON.stringify(queue.slice(0, 10)));
+  safeStorageSet(STORAGE_KEYS.draftCursor, "0");
 }
 
-function loadDraft() {
+function getDraftQueue() {
   const raw = safeStorageGet(STORAGE_KEYS.draft);
-  if (!raw) return null;
-  return safeJsonParse(raw, null);
+  if (!raw) return [];
+
+  const parsed = safeJsonParse(raw, null);
+  if (Array.isArray(parsed)) return parsed.filter(Boolean);
+  if (parsed && typeof parsed === "object") return [parsed];
+  return [];
+}
+
+function getDraftCursor(queueLength = getDraftQueue().length) {
+  if (!queueLength) return 0;
+  const raw = safeStorageGet(STORAGE_KEYS.draftCursor);
+  const value = Number.parseInt(String(raw || "0"), 10);
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return value % queueLength;
+}
+
+function setDraftCursor(index) {
+  safeStorageSet(STORAGE_KEYS.draftCursor, String(Math.max(0, index)));
+}
+
+function loadDraft({ advance = false } = {}) {
+  const queue = getDraftQueue();
+  if (!queue.length) return null;
+
+  const cursor = getDraftCursor(queue.length);
+  const draft = queue[cursor] || queue[0] || null;
+  if (advance && draft) {
+    setDraftCursor((cursor + 1) % queue.length);
+  }
+  return draft;
 }
 
 function clearDraft() {
   safeStorageRemove(STORAGE_KEYS.draft);
+  safeStorageRemove(STORAGE_KEYS.draftCursor);
 }
 
 function saveUspsUserId(userId) {
@@ -473,6 +585,45 @@ function extractCompKeywords(titles) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
     .map(([word]) => word);
+}
+
+function getManualCompValues(inputs) {
+  return inputs
+    .map((input) => Number(input?.value))
+    .filter((value) => Number.isFinite(value) && value > 0);
+}
+
+function buildResearchLinks(query) {
+  const encoded = encodeURIComponent(query);
+  return {
+    ebaySold: `https://www.ebay.com/sch/i.html?_nkw=${encoded}&LH_Sold=1&LH_Complete=1`,
+    poshmark: `https://poshmark.com/search?query=${encoded}`,
+  };
+}
+
+function pushUnique(list, value) {
+  const clean = String(value || "").trim();
+  if (!clean) return;
+  if (!list.some((entry) => normalize(entry) === normalize(clean))) {
+    list.push(clean);
+  }
+}
+
+function tokenizeSearchWords(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length > 2 && !SEO_STOPWORDS.has(word));
+}
+
+function toHashtagToken(value) {
+  return String(value || "")
+    .trim()
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join("");
 }
 
 async function fetchUspsRates({ userId, originZip, destinationZip, pounds, ounces }) {
@@ -853,6 +1004,13 @@ function initNewListingPage() {
     compStatus: $("#compStatus"),
     compSummary: $("#compSummary"),
     compResults: $("#compResults"),
+    manualCompInputs: [
+      $("#manualComp1"),
+      $("#manualComp2"),
+      $("#manualComp3"),
+      $("#manualComp4"),
+      $("#manualComp5"),
+    ].filter(Boolean),
     applyFormulaPriceBtn: $("#applyFormulaPriceBtn"),
     formulaStatus: $("#formulaStatus"),
     formulaSummary: $("#formulaSummary"),
@@ -914,49 +1072,76 @@ function initNewListingPage() {
     if (fields.hashtags) fields.hashtags.value = state.hashtags || "";
   }
 
-  function generateKeywordsFromState(state) {
-    const chunks = [
-      state.brand,
-      state.itemName,
-      state.category ? prettyCategory(state.category) : "",
-      state.condition ? prettyCondition(state.condition) : "",
-    ]
-      .join(" ")
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, " ")
-      .split(/\s+/)
-      .filter((word) => word.length > 2);
-
-    const seen = new Set();
-    const ordered = chunks.filter((word) => {
-      if (seen.has(word)) return false;
-      seen.add(word);
-      return true;
+  function resetListingForm() {
+    setFormState({});
+    currentEditingId = "";
+    latestCompMedian = null;
+    latestCompSummary = null;
+    latestCompQuery = "";
+    latestCompSource = "none";
+    (nodes.manualCompInputs || []).forEach((input) => {
+      input.value = "";
     });
-    return ordered.slice(0, 10);
+    if (nodes.compResults) nodes.compResults.innerHTML = "";
+    if (nodes.compSummary) nodes.compSummary.textContent = "";
+    if (nodes.compStatus) nodes.compStatus.textContent = "";
+    if (nodes.formulaSummary) nodes.formulaSummary.textContent = "";
+    if (nodes.formulaStatus) nodes.formulaStatus.textContent = "";
+    if (nodes.templateSelect) nodes.templateSelect.value = "";
+    fillTemplateEditor(null);
+    const submitBtn = nodes.form?.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.textContent = "Save Listing";
+    setError("");
+    setStatus("");
+    updatePreview();
+    document.querySelectorAll(".form-control, .form-select").forEach((field) => syncFilledState(field));
+  }
+
+  function generateKeywordsFromState(state) {
+    const keywords = [];
+    const categoryLabel = state.category ? prettyCategory(state.category) : "";
+    const itemWords = tokenizeSearchWords(state.itemName);
+
+    pushUnique(keywords, state.brand);
+    pushUnique(keywords, state.itemName);
+    pushUnique(keywords, [state.brand, state.itemName].filter(Boolean).join(" "));
+    pushUnique(keywords, categoryLabel);
+    pushUnique(keywords, [state.brand, categoryLabel].filter(Boolean).join(" "));
+
+    (CATEGORY_SEARCH_TERMS[state.category] || []).forEach((term) => pushUnique(keywords, term));
+    (CONDITION_SEARCH_TERMS[state.condition] || []).forEach((term) => pushUnique(keywords, term));
+
+    itemWords.forEach((word) => pushUnique(keywords, word));
+
+    if (state.brand && itemWords.length) {
+      pushUnique(keywords, `${state.brand} ${itemWords[0]}`);
+    }
+
+    return keywords.slice(0, 12);
   }
 
   function buildHashtags(state) {
-    const source = [
-      state.brand,
-      state.category ? prettyCategory(state.category) : "",
-      state.condition ? prettyCondition(state.condition) : "",
-      state.keywords,
-    ]
-      .join(" ")
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, " ")
-      .split(/\s+/)
-      .filter((word) => word.length > 2);
+    const hashtags = [];
+    const categoryLabel = state.category ? prettyCategory(state.category) : "";
+    const generatedKeywords = generateKeywordsFromState(state);
+    const itemWords = tokenizeSearchWords(state.itemName);
 
-    const unique = [];
-    const seen = new Set();
-    source.forEach((word) => {
-      if (seen.has(word)) return;
-      seen.add(word);
-      unique.push(`#${word}`);
+    [
+      state.brand,
+      categoryLabel,
+      state.itemName,
+      [state.brand, categoryLabel].filter(Boolean).join(" "),
+      (CONDITION_SEARCH_TERMS[state.condition] || [])[0] || "",
+      itemWords[0] || "",
+      itemWords.slice(0, 2).join(" "),
+      ...generatedKeywords.slice(0, 4),
+    ].forEach((value) => {
+      const token = toHashtagToken(value);
+      if (!token) return;
+      if (!hashtags.includes(`#${token}`)) hashtags.push(`#${token}`);
     });
-    return unique.slice(0, 8).join(" ");
+
+    return hashtags.slice(0, 8).join(" ");
   }
 
   function buildGeneratedDescription(state) {
@@ -1055,7 +1240,11 @@ function initNewListingPage() {
     const suggestedRange = pricingGuide.range;
     if (suggestedRange) {
       const rangeLabel = `$${suggestedRange[0]} - $${suggestedRange[1]}`;
-      nodes.suggestedRange.textContent = pricingGuide.source === "live" ? `${rangeLabel} (live comps)` : `${rangeLabel} (estimated)`;
+      nodes.suggestedRange.textContent = pricingGuide.source === "manual"
+        ? `${rangeLabel} (manual comps)`
+        : pricingGuide.source === "live"
+          ? `${rangeLabel} (live comps)`
+          : `${rangeLabel} (estimated)`;
     } else {
       nodes.suggestedRange.textContent = "-";
     }
@@ -1067,7 +1256,7 @@ function initNewListingPage() {
     const condition = prettyCondition(state.condition);
     const price = Number.isFinite(state.price) && state.price > 0 ? `$${state.price.toFixed(2)}` : "$0.00";
     const rangeText = suggestedRange
-      ? `${`$${suggestedRange[0]} - $${suggestedRange[1]}`} ${pricingGuide.source === "live" ? "(live comps)" : "(estimated)"}`
+      ? `${`$${suggestedRange[0]} - $${suggestedRange[1]}`} ${pricingGuide.source === "manual" ? "(manual comps)" : pricingGuide.source === "live" ? "(live comps)" : "(estimated)"}`
       : "Add category + condition";
     const priceCheckText = priceCheck.msg || "Waiting for price";
     const conditionText = state.condition
@@ -1075,12 +1264,12 @@ function initNewListingPage() {
       : "No condition selected yet.";
     const descriptionText = state.notes || "Add notes for flaws, measurements, materials, and shipping details.";
     const sellerNotesText = [
-      state.brand ? `Brand: ${state.brand}` : "",
-      state.category ? `Category: ${prettyCategory(state.category)}` : "",
-      `Condition: ${condition}`,
-      `Range: ${rangeText}`,
-      `Price Check: ${priceCheckText}`,
-    ].filter(Boolean).join("\n");
+      state.condition ? `Condition is listed as ${condition.toLowerCase()}.` : "Condition details can be added once reviewed.",
+      state.notes
+        ? "Please review the photos and description for measurements, materials, and any noted wear."
+        : "Please review the photos for overall item details and condition.",
+      "Message with any questions before purchase.",
+    ].join("\n");
     const hashtagsText = state.hashtags || "Generate hashtags from the form details.";
 
     if (nodes.listingCardTitle) nodes.listingCardTitle.textContent = title;
@@ -1117,9 +1306,22 @@ function initNewListingPage() {
 
   function getPricingGuide(state) {
     const query = buildCompQuery(state);
+    const manualCompValues = getManualCompValues(nodes.manualCompInputs || []);
+    const manualCompSummary = manualCompValues.length
+      ? computeCompSummary(manualCompValues.map((price, idx) => ({ title: `Manual comp ${idx + 1}`, price })))
+      : null;
+    const hasManualCompGuide = manualCompSummary && normalize(latestCompQuery) === normalize(query);
     const hasLiveCompGuide = latestCompSource === "live"
       && latestCompSummary
       && normalize(latestCompQuery) === normalize(query);
+
+    if (hasManualCompGuide) {
+      return {
+        range: [Number(manualCompSummary.min.toFixed(2)), Number(manualCompSummary.max.toFixed(2))],
+        suggested: Number(manualCompSummary.median.toFixed(2)),
+        source: "manual",
+      };
+    }
 
     if (hasLiveCompGuide) {
       return {
@@ -1166,10 +1368,12 @@ function initNewListingPage() {
     const [low, high] = pricingGuide.range;
     const suggested = pricingGuide.suggested;
     fields.price.value = suggested.toFixed(2);
-    nodes.formulaSummary.textContent = `Range: $${low}-$${high} | Suggested: $${suggested.toFixed(2)} | Source: ${pricingGuide.source === "live" ? "live sold comps" : "local estimate"}.`;
-    nodes.formulaStatus.textContent = pricingGuide.source === "live"
-      ? `Applied price from live sold comps: $${suggested.toFixed(2)}.`
-      : `Applied estimated price: $${suggested.toFixed(2)}.`;
+    nodes.formulaSummary.textContent = `Range: $${low}-$${high} | Suggested: $${suggested.toFixed(2)} | Source: ${pricingGuide.source === "manual" ? "manual comps" : pricingGuide.source === "live" ? "live sold comps" : "local estimate"}.`;
+    nodes.formulaStatus.textContent = pricingGuide.source === "manual"
+      ? `Applied price from manual comps: $${suggested.toFixed(2)}.`
+      : pricingGuide.source === "live"
+        ? `Applied price from live sold comps: $${suggested.toFixed(2)}.`
+        : `Applied estimated price: $${suggested.toFixed(2)}.`;
 
     if (!fields.keywords.value.trim()) {
       fields.keywords.value = [state.brand, state.itemName, prettyCategory(state.category)]
@@ -1181,18 +1385,28 @@ function initNewListingPage() {
 
   nodes.applyFormulaPriceBtn.addEventListener("click", applyFormulaPricing);
 
-  const activeDraft = loadDraft();
-  let currentEditingId = activeDraft?.__editingId || "";
-  if (currentEditingId && activeDraft) {
-    setFormState(activeDraft);
+  function loadDraftIntoForm(draft, statusMessage) {
+    if (!draft) return false;
+    currentEditingId = draft.__editingId || "";
+    setFormState(draft);
     updatePreview();
     const submitBtn = nodes.form?.querySelector('button[type="submit"]');
-    if (submitBtn) submitBtn.textContent = "Update Listing";
-    nodes.formStatus.textContent = "Editing saved listing from inventory.";
+    if (submitBtn) submitBtn.textContent = currentEditingId ? "Update Listing" : "Save Listing";
+    nodes.formStatus.textContent = statusMessage || (currentEditingId ? "Loaded draft for editing." : "Loaded saved draft.");
+    return true;
+  }
+
+  let currentEditingId = "";
+  const activeDraft = loadDraft({ advance: true });
+  if (activeDraft) {
+    loadDraftIntoForm(
+      activeDraft,
+      activeDraft.__editingId ? "Loaded latest draft for editing." : "Loaded latest saved draft."
+    );
   }
 
   if (nodes.runCompSearchBtn) {
-    nodes.runCompSearchBtn.addEventListener("click", async () => {
+    nodes.runCompSearchBtn.addEventListener("click", () => {
       const state = getFormState();
       const query = buildCompQuery(state);
       nodes.compResults.innerHTML = "";
@@ -1203,89 +1417,71 @@ function initNewListingPage() {
       latestCompSource = "none";
 
       if (!query) {
-        nodes.compStatus.textContent = "Add at least item name or brand before searching eBay comps.";
+        nodes.compStatus.textContent = "Add at least item name or brand before opening market research.";
         return;
       }
 
-      let comps = [];
-
-      if (ENABLE_LIVE_EBAY_COMPS && EBAY_APP_ID) {
-        nodes.compStatus.textContent = "Searching eBay sold comps...";
-        try {
-          comps = await searchEbaySoldListings(query, EBAY_APP_ID);
-          if (comps.length) latestCompSource = "live";
-        } catch {
-          comps = [];
-        }
-      }
-
-      if (!comps.length && ENABLE_DEMO_EBAY_COMPS) {
-        comps = buildDemoCompData(state);
-        latestCompSource = "demo";
-        nodes.compStatus.textContent = "Live eBay comps are temporarily unavailable. Showing comparable estimates.";
-      } else if (!comps.length) {
-        nodes.compStatus.textContent = "Live eBay comps are currently unavailable.";
-        latestCompSource = "none";
-        return;
-      } else {
-        nodes.compStatus.textContent = "eBay comps loaded.";
-      }
-
-      const summary = computeCompSummary(comps);
-      if (!summary) {
-        nodes.compStatus.textContent = "No usable prices returned. Use formula pricing.";
-        return;
-      }
-
-      latestCompMedian = summary.median;
-      latestCompSummary = summary;
-      nodes.compSummary.textContent =
-        `Comps: ${summary.count} | Min $${summary.min.toFixed(2)} | Median $${summary.median.toFixed(2)} | Avg $${summary.average.toFixed(2)} | Max $${summary.max.toFixed(2)} | Source: ${latestCompSource === "live" ? "live sold comps" : "demo estimate"}.`;
-      renderCompResults(comps);
-
-      const keywords = extractCompKeywords(comps.map((comp) => comp.title));
-      if (keywords.length && !fields.keywords.value.trim()) {
-        fields.keywords.value = keywords.join(", ");
-      }
-      updatePreview();
+      const links = buildResearchLinks(query);
+      window.open(links.ebaySold, "_blank", "noopener,noreferrer");
+      window.open(links.poshmark, "_blank", "noopener,noreferrer");
+      nodes.compStatus.textContent = "Opened eBay sold results and Poshmark search in new tabs. Enter the real comp prices you find below.";
+      nodes.compSummary.textContent = "Use sold listings first when possible, then compare against current Poshmark pricing before entering comp values.";
     });
   }
 
   if (nodes.applyCompPriceBtn) {
     nodes.applyCompPriceBtn.addEventListener("click", () => {
-      if (!Number.isFinite(latestCompMedian) || latestCompMedian <= 0) {
-        nodes.compStatus.textContent = "No comp price yet. Run eBay comps search first.";
+      const manualCompValues = getManualCompValues(nodes.manualCompInputs || []);
+      const summary = manualCompValues.length
+        ? computeCompSummary(manualCompValues.map((price, idx) => ({ title: `Manual comp ${idx + 1}`, price })))
+        : null;
+
+      if (!summary) {
+        nodes.compStatus.textContent = "Enter at least 1 real comp price before applying a comp median.";
         return;
       }
 
+      latestCompMedian = summary.median;
+      latestCompSummary = summary;
+      latestCompQuery = buildCompQuery(getFormState());
+      latestCompSource = "manual";
       fields.price.value = latestCompMedian.toFixed(2);
-      nodes.compStatus.textContent = `Applied eBay comp median: $${latestCompMedian.toFixed(2)}.`;
+      nodes.compSummary.textContent = `Comps: ${summary.count} | Min $${summary.min.toFixed(2)} | Median $${summary.median.toFixed(2)} | Avg $${summary.average.toFixed(2)} | Max $${summary.max.toFixed(2)} | Source: manual comps.`;
+      nodes.compStatus.textContent = `Applied manual comp median: $${latestCompMedian.toFixed(2)}.`;
       updatePreview();
     });
   }
 
+  (nodes.manualCompInputs || []).forEach((input) => {
+    input.addEventListener("input", () => {
+      latestCompQuery = buildCompQuery(getFormState());
+      latestCompSource = "manual";
+      updatePreview();
+    });
+  });
+
   $("#saveDraftBtn").addEventListener("click", () => {
     const draftState = getFormState();
-    saveDraft(currentEditingId ? { ...draftState, __editingId: currentEditingId } : draftState);
-    setStatus("Draft saved.");
+    saveDraft({
+      ...draftState,
+      status: "draft",
+      ...(currentEditingId ? { __editingId: currentEditingId } : {}),
+    });
+    setStatus("Draft saved with Draft status.");
   });
 
   $("#loadDraftBtn").addEventListener("click", () => {
-    const draft = loadDraft();
+    const draft = loadDraft({ advance: true });
     if (!draft) {
-      setError("No draft found.");
+      window.alert("No saved drafts were found.");
       return;
     }
-    currentEditingId = draft.__editingId || "";
-    setFormState(draft);
-    updatePreview();
-    setStatus("Draft loaded.");
+    loadDraftIntoForm(draft, draft.__editingId ? "Loaded next draft for editing." : "Loaded next saved draft.");
   });
 
   $("#clearDraftBtn").addEventListener("click", () => {
-    clearDraft();
-    currentEditingId = "";
-    setStatus("Draft cleared.");
+    resetListingForm();
+    setStatus("Form reset. Load Draft to open the next saved draft.");
   });
 
   $("#copyBtn").addEventListener("click", async () => {
@@ -1432,17 +1628,17 @@ function initNewListingPage() {
       const existingListing = getListingById(currentEditingId);
       updateListing(currentEditingId, {
         ...state,
-        status: normalizeStatus(existingListing?.status || state.status),
+        status: "ready",
+        sku: existingListing?.sku || allocateNextSku(),
       });
-      saveDraft(state);
     } else {
       addListing({
         id: uid(),
         ...state,
-        status: normalizeStatus(state.status),
+        status: "ready",
+        sku: allocateNextSku(),
         createdAt: new Date().toISOString(),
       });
-      saveDraft(state);
     }
     window.location.href = "dashboard.html";
   });
@@ -1483,6 +1679,15 @@ function initTemplatesPage() {
   const duplicateBtn = $("#duplicateLibraryTemplateBtn");
   const clearBtn = $("#clearLibraryTemplateBtn");
   const deleteBtn = $("#deleteLibraryTemplateBtn");
+  const skuFields = {
+    prefix: $("#skuPrefix"),
+    nextNumber: $("#skuStartNumber"),
+    digits: $("#skuDigits"),
+    preview: $("#skuPreviewBadge"),
+    status: $("#skuSettingsStatus"),
+    saveBtn: $("#saveSkuSettingsBtn"),
+    resetBtn: $("#resetSkuSettingsBtn"),
+  };
   const libraryStatus = $("#templateLibraryStatus");
   const editorStatus = $("#templateEditorStatus");
   const libraryList = $("#templateLibraryList");
@@ -1517,6 +1722,22 @@ function initTemplatesPage() {
   function clearEditor(statusMessage = "") {
     fillEditor(null);
     editorStatus.textContent = statusMessage;
+  }
+
+  function renderSkuSettings() {
+    const settings = getSkuSettings();
+    if (skuFields.prefix) skuFields.prefix.value = settings.prefix;
+    if (skuFields.nextNumber) skuFields.nextNumber.value = String(settings.nextNumber);
+    if (skuFields.digits) skuFields.digits.value = String(settings.digits);
+    if (skuFields.preview) skuFields.preview.textContent = formatCustomSku(settings.nextNumber, settings);
+  }
+
+  function getSkuSettingsFromForm() {
+    return saveSkuSettings({
+      prefix: skuFields.prefix?.value || DEFAULT_SKU_SETTINGS.prefix,
+      nextNumber: skuFields.nextNumber?.value || DEFAULT_SKU_SETTINGS.nextNumber,
+      digits: skuFields.digits?.value || DEFAULT_SKU_SETTINGS.digits,
+    });
   }
 
   function renderPreview() {
@@ -1652,12 +1873,41 @@ function initTemplatesPage() {
     });
   });
 
+  if (skuFields.saveBtn) {
+    skuFields.saveBtn.addEventListener("click", () => {
+      const settings = getSkuSettingsFromForm();
+      renderSkuSettings();
+      skuFields.status.textContent = `SKU settings saved. Next SKU: ${formatCustomSku(settings.nextNumber, settings)}.`;
+    });
+  }
+
+  if (skuFields.resetBtn) {
+    skuFields.resetBtn.addEventListener("click", () => {
+      saveSkuSettings(DEFAULT_SKU_SETTINGS);
+      renderSkuSettings();
+      skuFields.status.textContent = "SKU settings reset to the Listing Lab default sequence.";
+    });
+  }
+
+  [skuFields.prefix, skuFields.nextNumber, skuFields.digits].forEach((field) => {
+    if (!field) return;
+    field.addEventListener("input", () => {
+      const previewSettings = {
+        prefix: skuFields.prefix?.value || DEFAULT_SKU_SETTINGS.prefix,
+        nextNumber: skuFields.nextNumber?.value || DEFAULT_SKU_SETTINGS.nextNumber,
+        digits: skuFields.digits?.value || DEFAULT_SKU_SETTINGS.digits,
+      };
+      if (skuFields.preview) skuFields.preview.textContent = formatCustomSku(previewSettings.nextNumber, previewSettings);
+    });
+  });
+
   const initialTemplates = getTemplates();
   if (initialTemplates.length) {
     fillEditor(initialTemplates[0]);
   } else {
     clearEditor();
   }
+  renderSkuSettings();
   renderLibrary();
   renderPreview();
 }
@@ -1814,7 +2064,7 @@ function initIntegrationsPage() {
       { label: "Smart Templates -> Create Listing", value: templateCount ? `${templateCount} saved template${templateCount === 1 ? "" : "s"}` : "No saved templates yet" },
       { label: "Pricing helper in Create Listing", value: "Included" },
       { label: "Dashboard export tools", value: listings.length ? "Included" : "Shown once listings are saved" },
-      { label: "Local browser storage", value: typeof localStorage !== "undefined" ? "Active" : "Unavailable" },
+      { label: "Local browser storage", value: typeof localStorage !== "undefined" ? "Active" : "Off" },
     ];
 
     checklist.innerHTML = "";
@@ -1977,7 +2227,7 @@ function initDashboardPage() {
     );
     emptyState.innerHTML = hasFilters
       ? `<p class="mb-1">No listings match the current search or filters.</p><p class="mb-0">Try clearing filters or adjusting your search terms.</p>`
-      : `<p class="mb-1">This dashboard is your local resale workspace.</p><p class="mb-0">Use it to track drafts, organize listings, and export prep-ready inventory.</p><a class="btn btn-dark mt-2" href="new-listing.html">Start a Listing</a>`;
+      : `<p class="mb-1">This dashboard is your local resale workspace.</p><p class="mb-0">Use it to track drafts, organize listings, and export prep-ready inventory.</p><a class="btn btn-dark mt-2" href="new-listing.html">Create a Listing</a>`;
   }
 
   function render() {

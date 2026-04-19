@@ -14,7 +14,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="interior-page utility-page">
+<body class="interior-page utility-page templates-page">
   <a class="skip-link" href="#main-content">Skip to main content</a>
 
   <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
@@ -61,7 +61,7 @@
     <section class="card mb-4 templates-hero-card">
       <div class="card-body">
         <h1 class="h3">Smart Templates</h1>
-        <p class="text-secondary mb-0">Start here when you want to build reusable listing sections you can apply later in Create Listing. Save title, description, shipping, keyword, condition, and measurement language in 1 place.</p>
+        <p class="text-secondary mb-0">Start here when you want to build reusable listing sections you can apply later in Create Listing. Save description, shipping, keyword, condition, and measurement language in 1 place.</p>
       </div>
     </section>
 
@@ -80,6 +80,34 @@
               <p class="preview-section-label mb-1">Use in Create Listing</p>
               <p class="text-secondary mb-0">Templates saved here appear in Create Listing automatically. Choose 1 from the Templates menu there when you want faster copy and a more consistent listing setup.</p>
             </div>
+            <div class="templates-sku-card mb-3">
+              <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+                <div>
+                  <p class="preview-section-label mb-1">Custom SKU System</p>
+                  <p class="text-secondary mb-0">Set the prefix and numbering style you want Listing Lab to apply to new saved listings.</p>
+                </div>
+                <span class="dashboard-sku" id="skuPreviewBadge">LL-0001</span>
+              </div>
+              <div class="row g-3">
+                <div class="col-12 col-md-4">
+                  <label class="form-label" for="skuPrefix">SKU Prefix</label>
+                  <input class="form-control" id="skuPrefix" placeholder="e.g., JL" />
+                </div>
+                <div class="col-6 col-md-4">
+                  <label class="form-label" for="skuStartNumber">Next Number</label>
+                  <input class="form-control" id="skuStartNumber" type="number" min="1" step="1" placeholder="1" />
+                </div>
+                <div class="col-6 col-md-4">
+                  <label class="form-label" for="skuDigits">Digits</label>
+                  <input class="form-control" id="skuDigits" type="number" min="1" max="8" step="1" placeholder="4" />
+                </div>
+              </div>
+              <div class="d-flex flex-wrap gap-2 mt-3">
+                <button class="btn btn-outline-secondary" id="saveSkuSettingsBtn" type="button">Save SKU Settings</button>
+                <button class="btn btn-outline-secondary" id="resetSkuSettingsBtn" type="button">Reset SKU Settings</button>
+              </div>
+              <p id="skuSettingsStatus" class="small text-secondary mt-3 mb-0" role="status" aria-live="polite"></p>
+            </div>
             <p id="templateLibraryStatus" class="small text-secondary mb-3" role="status" aria-live="polite"></p>
             <div id="templateLibraryList" class="saved-template-list"></div>
           </div>
@@ -93,7 +121,7 @@
               <div class="template-output-card__header">
                 <div>
                   <h2 class="h5 mb-1">Build Template</h2>
-                  <p class="small text-secondary mb-0">Start with the template name and listing title, then add the reusable sections you want to apply to future listings.</p>
+                  <p class="small text-secondary mb-0">Start with the template name, then add the reusable sections you want to apply to future listings.</p>
                 </div>
               </div>
               <div class="row g-3">
