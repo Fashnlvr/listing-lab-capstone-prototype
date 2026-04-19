@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Integrations | Listing Lab</title>
+  <title>Workspace Features | Listing Lab</title>
   <link
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
     rel="stylesheet"
@@ -60,17 +60,21 @@
   <main id="main-content" class="container py-4">
     <section class="card mb-4">
       <div class="card-body">
-        <h1 class="h3">Workspace Readiness</h1>
+        <h1 class="h3">Workspace Features</h1>
         <p class="text-secondary mb-0">
-          Review which front-end tools are available in this browser and confirm that local setup is ready for listing prep.
+          Review how Listing Lab connects its core areas in this browser. This page tracks local integrations between Create Listing, Dashboard, Smart Templates, pricing tools, and export-ready records.
         </p>
       </div>
     </section>
 
     <section class="card">
       <div class="card-body">
+        <div class="mb-3">
+          <h2 class="h5 mb-1">Current Connections</h2>
+          <p class="text-secondary mb-0">Everything here is front-end only. Listings, drafts, templates, and exports stay local to this browser session and your saved LocalStorage data.</p>
+        </div>
         <div id="integrationChecklist" class="d-grid gap-2 mb-3"></div>
-        <button class="btn btn-outline-secondary" id="runIntegrationCheckBtn" type="button">Run Readiness Check</button>
+        <button class="btn btn-outline-secondary" id="runIntegrationCheckBtn" type="button">Refresh Integrations</button>
         <p id="integrationCheckStatus" class="small text-secondary mt-3 mb-0" role="status" aria-live="polite"></p>
       </div>
     </section>

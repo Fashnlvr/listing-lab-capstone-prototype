@@ -3,7 +3,6 @@ const STORAGE_KEYS = {
   draft: "listingLab:draft:v2",
   uspsUserId: "listingLab:uspsUserId:v1",
   templates: "listingLab:templates:v1",
-  smartTemplates: "listingLab:smartTemplates:v1",
 };
 
 const LISTING_STATUSES = ["draft", "ready", "listed", "sold"];
@@ -214,7 +213,7 @@ function getTemplates() {
   const raw = safeStorageGet(STORAGE_KEYS.templates);
   if (!raw) return [];
   const parsed = safeJsonParse(raw, []);
-  return Array.isArray(parsed) ? parsed : [];
+  return Array.isArray(parsed) ? parsed.map((template) => buildTemplateRecord(template)) : [];
 }
 
 function saveTemplates(templates) {
@@ -222,12 +221,13 @@ function saveTemplates(templates) {
 }
 
 function upsertTemplate(template) {
+  const normalizedTemplate = buildTemplateRecord(template);
   const templates = getTemplates();
-  const idx = templates.findIndex((item) => item.id === template.id);
+  const idx = templates.findIndex((item) => item.id === normalizedTemplate.id);
   if (idx >= 0) {
-    templates[idx] = template;
+    templates[idx] = normalizedTemplate;
   } else {
-    templates.unshift(template);
+    templates.unshift(normalizedTemplate);
   }
   saveTemplates(templates);
 }
@@ -241,31 +241,109 @@ function getTemplateById(id) {
   return getTemplates().find((template) => template.id === id);
 }
 
-function getSmartTemplates() {
-  const raw = safeStorageGet(STORAGE_KEYS.smartTemplates);
-  if (!raw) return [];
-  const parsed = safeJsonParse(raw, []);
-  return Array.isArray(parsed) ? parsed : [];
+function buildTemplateRecord(template = {}) {
+  return {
+    id: template.id || uid(),
+    name: String(template.name || "").trim(),
+    titlePattern: String(template.titlePattern || "").trim(),
+    description: String(template.description || "").trim(),
+    shippingNotes: String(template.shippingNotes || "").trim(),
+    keywords: String(template.keywords || "").trim(),
+    conditionDisclosure: String(template.conditionDisclosure || "").trim(),
+    measurementsReminder: String(template.measurementsReminder || "").trim(),
+    category: String(template.category || "").trim(),
+    condition: String(template.condition || "").trim(),
+    updatedAt: template.updatedAt || new Date().toISOString(),
+  };
 }
 
-function saveSmartTemplates(templates) {
-  safeStorageSet(STORAGE_KEYS.smartTemplates, JSON.stringify(templates));
+function duplicateTemplate(id) {
+  const source = getTemplateById(id);
+  if (!source) return null;
+
+  const duplicate = buildTemplateRecord({
+    ...source,
+    id: uid(),
+    name: `${source.name || "Untitled Template"} Copy`,
+    updatedAt: new Date().toISOString(),
+  });
+  upsertTemplate(duplicate);
+  return duplicate;
 }
 
-function upsertSmartTemplate(template) {
-  const templates = getSmartTemplates();
-  const idx = templates.findIndex((item) => item.id === template.id);
-  if (idx >= 0) {
-    templates[idx] = template;
-  } else {
-    templates.unshift(template);
-  }
-  saveSmartTemplates(templates);
+const TEMPLATE_TOKEN_SAMPLES = {
+  itemName: "Structured Blazer",
+  brand: "Madewell",
+  category: "Outerwear",
+  condition: "Good",
+  price: "$48.00",
+  measurements: "Pit to pit 19 in, length 26 in",
+  flaws: "light sleeve wear noted in photos",
+};
+
+function getTemplateTokenValues(values = {}) {
+  return {
+    itemName: String(values.itemName || "").trim(),
+    brand: String(values.brand || "").trim(),
+    category: String(values.category || "").trim(),
+    condition: String(values.condition || "").trim(),
+    price: String(values.price || "").trim(),
+    measurements: String(values.measurements || "").trim(),
+    flaws: String(values.flaws || "").trim(),
+  };
 }
 
-function removeSmartTemplate(id) {
-  const templates = getSmartTemplates().filter((template) => template.id !== id);
-  saveSmartTemplates(templates);
+function renderTemplateTokens(text, values = {}, fallbackValues = {}) {
+  const tokenValues = {
+    ...fallbackValues,
+    ...getTemplateTokenValues(values),
+  };
+
+  const normalizedText = String(text || "")
+    .replace(/\bItem Name\b/gi, "{{itemName}}")
+    .replace(/\bBrand\b/gi, "{{brand}}")
+    .replace(/\bCategory\b/gi, "{{category}}")
+    .replace(/\bCondition\b/gi, "{{condition}}")
+    .replace(/\bPrice\b/gi, "{{price}}")
+    .replace(/\bMeasurements\b/gi, "{{measurements}}")
+    .replace(/\bFlaws\b/gi, "{{flaws}}");
+
+  return normalizedText.replace(/\{\{\s*(\w+)\s*\}\}|\{(\w+)\}/g, (_, modernToken, legacyToken) => {
+    const key = modernToken || legacyToken;
+    return Object.prototype.hasOwnProperty.call(tokenValues, key) ? tokenValues[key] : "";
+  }).trim();
+}
+
+function mergeTemplateKeywords(existingKeywords, incomingKeywords) {
+  const parts = [existingKeywords, incomingKeywords]
+    .join(",")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const seen = new Set();
+  return parts.filter((part) => {
+    const normalized = normalize(part);
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  }).join(", ");
+}
+
+function appendUniqueNoteSections(existingText, sections) {
+  let next = String(existingText || "").trim();
+  const normalizedExisting = () => normalize(next);
+
+  sections.forEach(({ label, content }) => {
+    const cleanContent = String(content || "").trim();
+    if (!cleanContent) return;
+    const block = `${label}:\n${cleanContent}`;
+    const existing = normalizedExisting();
+    if (existing.includes(normalize(block)) || existing.includes(normalize(cleanContent))) return;
+    next = next ? `${next}\n\n${block}` : block;
+  });
+
+  return next;
 }
 
 function saveDraft(draft) {
@@ -787,6 +865,8 @@ function initNewListingPage() {
     templateDescription: $("#templateDescription"),
     templateKeywords: $("#templateKeywords"),
     templateShippingNotes: $("#templateShippingNotes"),
+    templateConditionDisclosure: $("#templateConditionDisclosure"),
+    templateMeasurementsReminder: $("#templateMeasurementsReminder"),
     templateStatus: $("#templateStatus"),
     saveTemplateBtn: $("#saveTemplateBtn"),
     applyTemplateBtn: $("#applyTemplateBtn"),
@@ -794,6 +874,9 @@ function initNewListingPage() {
   };
 
   let latestCompMedian = null;
+  let latestCompSummary = null;
+  let latestCompQuery = "";
+  let latestCompSource = "none";
 
   function setError(message) {
     nodes.formError.textContent = message || "";
@@ -893,6 +976,8 @@ function initNewListingPage() {
     nodes.templateDescription.value = template?.description || "";
     nodes.templateKeywords.value = template?.keywords || "";
     nodes.templateShippingNotes.value = template?.shippingNotes || "";
+    if (nodes.templateConditionDisclosure) nodes.templateConditionDisclosure.value = template?.conditionDisclosure || "";
+    if (nodes.templateMeasurementsReminder) nodes.templateMeasurementsReminder.value = template?.measurementsReminder || "";
   }
 
   function renderTemplateOptions(selectedId = "") {
@@ -912,25 +997,32 @@ function initNewListingPage() {
     if (!template) return;
     const current = getFormState();
 
-    const replacements = {
-      "{itemName}": current.itemName || "",
-      "{brand}": current.brand || "",
-      "{category}": prettyCategory(current.category),
-      "{condition}": prettyCondition(current.condition),
+    const tokenValues = {
+      itemName: current.itemName,
+      brand: current.brand,
+      category: prettyCategory(current.category || template.category),
+      condition: prettyCondition(current.condition || template.condition),
+      price: Number.isFinite(current.price) && current.price > 0 ? `$${current.price.toFixed(2)}` : "",
+      measurements: "[add measurements]",
+      flaws: "[add flaws]",
     };
 
-    const titlePattern = String(template.titlePattern || "");
-    const title = Object.entries(replacements).reduce((acc, [token, value]) => acc.replaceAll(token, value), titlePattern).trim();
+    const title = renderTemplateTokens(template.titlePattern, tokenValues, TEMPLATE_TOKEN_SAMPLES);
+    if (!fields.itemName.value.trim() && title) fields.itemName.value = title;
+    if (!fields.category.value && template.category) fields.category.value = template.category;
+    if (!fields.condition.value && template.condition) fields.condition.value = template.condition;
 
-    if (title) fields.itemName.value = title;
-    if (template.category) fields.category.value = template.category;
-    if (template.condition) fields.condition.value = template.condition;
-    if (template.keywords) fields.keywords.value = template.keywords;
+    const renderedKeywords = renderTemplateTokens(template.keywords, tokenValues, TEMPLATE_TOKEN_SAMPLES);
+    if (renderedKeywords) {
+      fields.keywords.value = mergeTemplateKeywords(fields.keywords.value, renderedKeywords);
+    }
 
-    const descriptionParts = [template.description, template.shippingNotes]
-      .map((part) => String(part || "").trim())
-      .filter(Boolean);
-    if (descriptionParts.length) fields.notes.value = descriptionParts.join("\n\n");
+    fields.notes.value = appendUniqueNoteSections(fields.notes.value, [
+      { label: "Description", content: renderTemplateTokens(template.description, tokenValues, TEMPLATE_TOKEN_SAMPLES) },
+      { label: "Condition Disclosure", content: renderTemplateTokens(template.conditionDisclosure, tokenValues, TEMPLATE_TOKEN_SAMPLES) },
+      { label: "Measurements Reminder", content: renderTemplateTokens(template.measurementsReminder, tokenValues, TEMPLATE_TOKEN_SAMPLES) },
+      { label: "Shipping Notes", content: renderTemplateTokens(template.shippingNotes, tokenValues, TEMPLATE_TOKEN_SAMPLES) },
+    ]);
 
     updatePreview();
   }
@@ -959,10 +1051,11 @@ function initNewListingPage() {
     const state = getFormState();
     updateCompleteness(state);
 
-    let suggestedRange = null;
-    if (state.category && state.condition) {
-      suggestedRange = getSuggestedRange(state.category, state.condition, state.brand);
-      nodes.suggestedRange.textContent = `$${suggestedRange[0]} - $${suggestedRange[1]}`;
+    const pricingGuide = getPricingGuide(state);
+    const suggestedRange = pricingGuide.range;
+    if (suggestedRange) {
+      const rangeLabel = `$${suggestedRange[0]} - $${suggestedRange[1]}`;
+      nodes.suggestedRange.textContent = pricingGuide.source === "live" ? `${rangeLabel} (live comps)` : `${rangeLabel} (estimated)`;
     } else {
       nodes.suggestedRange.textContent = "-";
     }
@@ -973,7 +1066,9 @@ function initNewListingPage() {
     const title = state.itemName || "Untitled item";
     const condition = prettyCondition(state.condition);
     const price = Number.isFinite(state.price) && state.price > 0 ? `$${state.price.toFixed(2)}` : "$0.00";
-    const rangeText = suggestedRange ? `$${suggestedRange[0]} - $${suggestedRange[1]}` : "Add category + condition";
+    const rangeText = suggestedRange
+      ? `${`$${suggestedRange[0]} - $${suggestedRange[1]}`} ${pricingGuide.source === "live" ? "(live comps)" : "(estimated)"}`
+      : "Add category + condition";
     const priceCheckText = priceCheck.msg || "Waiting for price";
     const conditionText = state.condition
       ? `${condition} condition${state.brand ? ` for this ${state.brand} item.` : "."}`
@@ -1020,6 +1115,32 @@ function initNewListingPage() {
       .trim();
   }
 
+  function getPricingGuide(state) {
+    const query = buildCompQuery(state);
+    const hasLiveCompGuide = latestCompSource === "live"
+      && latestCompSummary
+      && normalize(latestCompQuery) === normalize(query);
+
+    if (hasLiveCompGuide) {
+      return {
+        range: [Number(latestCompSummary.min.toFixed(2)), Number(latestCompSummary.max.toFixed(2))],
+        suggested: Number(latestCompSummary.median.toFixed(2)),
+        source: "live",
+      };
+    }
+
+    if (!(state.category && state.condition)) {
+      return { range: null, suggested: null, source: "none" };
+    }
+
+    const [low, high] = getSuggestedRange(state.category, state.condition, state.brand);
+    return {
+      range: [low, high],
+      suggested: Number((((low + high) / 2)).toFixed(2)),
+      source: "estimated",
+    };
+  }
+
   function renderCompResults(comps) {
     nodes.compResults.innerHTML = "";
     comps.slice(0, 6).forEach((comp) => {
@@ -1035,17 +1156,20 @@ function initNewListingPage() {
 
   function applyFormulaPricing() {
     const state = getFormState();
-    if (!(state.category && state.condition)) {
+    const pricingGuide = getPricingGuide(state);
+    if (!pricingGuide.range || !Number.isFinite(pricingGuide.suggested)) {
       nodes.formulaStatus.textContent = "Choose category and condition to generate a formula-based price.";
       nodes.formulaSummary.textContent = "";
       return;
     }
 
-    const [low, high] = getSuggestedRange(state.category, state.condition, state.brand);
-    const suggested = Number(((low + high) / 2).toFixed(2));
+    const [low, high] = pricingGuide.range;
+    const suggested = pricingGuide.suggested;
     fields.price.value = suggested.toFixed(2);
-    nodes.formulaSummary.textContent = `Range: $${low}-$${high} | Suggested: $${suggested.toFixed(2)}.`;
-    nodes.formulaStatus.textContent = `Applied formula price: $${suggested.toFixed(2)}.`;
+    nodes.formulaSummary.textContent = `Range: $${low}-$${high} | Suggested: $${suggested.toFixed(2)} | Source: ${pricingGuide.source === "live" ? "live sold comps" : "local estimate"}.`;
+    nodes.formulaStatus.textContent = pricingGuide.source === "live"
+      ? `Applied price from live sold comps: $${suggested.toFixed(2)}.`
+      : `Applied estimated price: $${suggested.toFixed(2)}.`;
 
     if (!fields.keywords.value.trim()) {
       fields.keywords.value = [state.brand, state.itemName, prettyCategory(state.category)]
@@ -1074,6 +1198,9 @@ function initNewListingPage() {
       nodes.compResults.innerHTML = "";
       nodes.compSummary.textContent = "";
       latestCompMedian = null;
+      latestCompSummary = null;
+      latestCompQuery = query;
+      latestCompSource = "none";
 
       if (!query) {
         nodes.compStatus.textContent = "Add at least item name or brand before searching eBay comps.";
@@ -1086,6 +1213,7 @@ function initNewListingPage() {
         nodes.compStatus.textContent = "Searching eBay sold comps...";
         try {
           comps = await searchEbaySoldListings(query, EBAY_APP_ID);
+          if (comps.length) latestCompSource = "live";
         } catch {
           comps = [];
         }
@@ -1093,9 +1221,11 @@ function initNewListingPage() {
 
       if (!comps.length && ENABLE_DEMO_EBAY_COMPS) {
         comps = buildDemoCompData(state);
+        latestCompSource = "demo";
         nodes.compStatus.textContent = "Live eBay comps are temporarily unavailable. Showing comparable estimates.";
       } else if (!comps.length) {
         nodes.compStatus.textContent = "Live eBay comps are currently unavailable.";
+        latestCompSource = "none";
         return;
       } else {
         nodes.compStatus.textContent = "eBay comps loaded.";
@@ -1108,8 +1238,9 @@ function initNewListingPage() {
       }
 
       latestCompMedian = summary.median;
+      latestCompSummary = summary;
       nodes.compSummary.textContent =
-        `Comps: ${summary.count} | Min $${summary.min.toFixed(2)} | Median $${summary.median.toFixed(2)} | Avg $${summary.average.toFixed(2)} | Max $${summary.max.toFixed(2)}.`;
+        `Comps: ${summary.count} | Min $${summary.min.toFixed(2)} | Median $${summary.median.toFixed(2)} | Avg $${summary.average.toFixed(2)} | Max $${summary.max.toFixed(2)} | Source: ${latestCompSource === "live" ? "live sold comps" : "demo estimate"}.`;
       renderCompResults(comps);
 
       const keywords = extractCompKeywords(comps.map((comp) => comp.title));
@@ -1224,17 +1355,19 @@ function initNewListingPage() {
       }
 
       const selectedId = nodes.templateSelect.value;
-      const template = {
+      const template = buildTemplateRecord({
         id: selectedId || uid(),
         name,
         titlePattern: nodes.templateTitlePattern.value.trim(),
         description: nodes.templateDescription.value.trim(),
         keywords: nodes.templateKeywords.value.trim(),
         shippingNotes: nodes.templateShippingNotes.value.trim(),
+        conditionDisclosure: nodes.templateConditionDisclosure?.value.trim() || "",
+        measurementsReminder: nodes.templateMeasurementsReminder?.value.trim() || "",
         category: fields.category.value,
         condition: fields.condition.value,
         updatedAt: new Date().toISOString(),
-      };
+      });
 
       upsertTemplate(template);
       renderTemplateOptions(template.id);
@@ -1328,366 +1461,205 @@ function initTemplatesPage() {
   if (!pageHas("#templatesWorkspace")) return;
 
   const fields = {
-    originZip: $("#shipOriginZip"),
-    destinationZip: $("#shipDestZip"),
-    pounds: $("#shipWeightPounds"),
-    ounces: $("#shipWeightOz"),
-    packageProfile: $("#shipPackageProfile"),
-    shippingSpeed: $("#templateShippingSpeed"),
-    handlingTime: $("#templateHandlingTime"),
-    packagingStyle: $("#templatePackagingStyle"),
-    disclosureStyle: $("#templateDisclosureStyle"),
-    combinedShipping: $("#templateCombinedShipping"),
-    thankYouTone: $("#templateThankYouTone"),
+    name: $("#libraryTemplateName"),
+    titlePattern: $("#libraryTemplateTitlePattern"),
+    description: $("#libraryTemplateDescription"),
+    shippingNotes: $("#libraryTemplateShippingNotes"),
+    keywords: $("#libraryTemplateKeywords"),
+    conditionDisclosure: $("#libraryTemplateConditionDisclosure"),
+    measurementsReminder: $("#libraryTemplateMeasurementsReminder"),
   };
 
-  const outputs = {
-    shipping: $("#shippingTemplatePreview"),
-    condition: $("#templateConditionOutput"),
-    bundle: $("#templateBundleOutput"),
-    thanks: $("#templateThankYouOutput"),
-    listingNotes: $("#templateListingNotesOutput"),
+  const previewNodes = {
+    description: $("#templatePreviewDescription"),
+    shipping: $("#templatePreviewShipping"),
+    keywords: $("#templatePreviewKeywords"),
+    condition: $("#templatePreviewCondition"),
+    measurements: $("#templatePreviewMeasurements"),
   };
 
-  const statusEl = $("#templateWorkspaceStatus");
-  const shippingStatusEl = $("#templateShippingStatus");
-  const savedStatusEl = $("#savedTemplateStatus");
-  const savedListEl = $("#savedTemplateList");
-  const rateSummaryEl = $("#templateRateSummary");
-  const buildShippingTemplateBtn = $("#buildShippingTemplateBtn");
-  const copyShippingTemplateBtn = $("#copyShippingTemplateBtn");
-  const buildTemplateWorkspaceBtn = $("#buildTemplateWorkspaceBtn");
-  const resetTemplateWorkspaceBtn = $("#resetTemplateWorkspaceBtn");
+  const createBtn = $("#createTemplateBtn");
+  const saveBtn = $("#saveLibraryTemplateBtn");
+  const duplicateBtn = $("#duplicateLibraryTemplateBtn");
+  const clearBtn = $("#clearLibraryTemplateBtn");
+  const deleteBtn = $("#deleteLibraryTemplateBtn");
+  const libraryStatus = $("#templateLibraryStatus");
+  const editorStatus = $("#templateEditorStatus");
+  const libraryList = $("#templateLibraryList");
+  let selectedTemplateId = "";
 
-  const defaultState = {
-    shippingSpeed: "next-business-day",
-    handlingTime: "one-day",
-    packagingStyle: "clean-folded",
-    disclosureStyle: "standard",
-    combinedShipping: "encouraged",
-    thankYouTone: "warm",
-  };
-
-  const labelMaps = {
-    shippingSpeed: {
-      "next-business-day": "next business day",
-      "two-business-days": "within 2 business days",
-      "three-business-days": "within 3 business days",
-    },
-    handlingTime: {
-      "same-day": "same-day handling when possible",
-      "one-day": "1 business day handling",
-      "two-days": "2 business day handling",
-    },
-    packagingStyle: {
-      "clean-folded": "cleanly folded in a fresh mailer",
-      boxed: "carefully boxed for safer transit",
-      wrapped: "wrapped with tissue and protective layers",
-    },
-    disclosureStyle: {
-      standard: "Please review all photos closely and read the item notes before purchasing. Any visible wear, measurements, or standout details should be called out in the listing.",
-      detailed: "Please review all photos closely before purchasing. The final listing should note fabric, measurements, closure details, and any visible wear or flaws so the buyer has a complete picture before checkout.",
-      concise: "Please review photos and notes carefully. Add any visible wear or flaw details directly to the listing before posting.",
-    },
-    combinedShipping: {
-      encouraged: "Bundles are welcome and combined shipping is encouraged when it lowers total shipping cost.",
-      available: "Combined shipping is available when package size and weight make it practical.",
-      offers: "Reasonable offers are welcome, and bundle requests can be reviewed case by case.",
-    },
-    thankYouTone: {
-      warm: "Thank you so much for shopping secondhand with me. I appreciate your order and your support.",
-      professional: "Thank you for your order. Your package is being prepared with care and will be sent with tracking.",
-      boutique: "Thank you for your order. Your package is wrapped with care and ready for a polished unboxing experience.",
-    },
-  };
-
-  let latestRates = [];
-
-  function getReusableState() {
-    return {
-      shippingSpeed: fields.shippingSpeed.value || defaultState.shippingSpeed,
-      handlingTime: fields.handlingTime.value || defaultState.handlingTime,
-      packagingStyle: fields.packagingStyle.value || defaultState.packagingStyle,
-      disclosureStyle: fields.disclosureStyle.value || defaultState.disclosureStyle,
-      combinedShipping: fields.combinedShipping.value || defaultState.combinedShipping,
-      thankYouTone: fields.thankYouTone.value || defaultState.thankYouTone,
-    };
-  }
-
-  function applyReusableState(state = defaultState) {
-    fields.shippingSpeed.value = state.shippingSpeed || defaultState.shippingSpeed;
-    fields.handlingTime.value = state.handlingTime || defaultState.handlingTime;
-    fields.packagingStyle.value = state.packagingStyle || defaultState.packagingStyle;
-    fields.disclosureStyle.value = state.disclosureStyle || defaultState.disclosureStyle;
-    fields.combinedShipping.value = state.combinedShipping || defaultState.combinedShipping;
-    fields.thankYouTone.value = state.thankYouTone || defaultState.thankYouTone;
-  }
-
-  function getUspsState() {
-    return {
-      originZip: String(fields.originZip?.value || "").replace(/\D/g, "").slice(0, 5),
-      destinationZip: String(fields.destinationZip?.value || "").replace(/\D/g, "").slice(0, 5),
-      pounds: Number(fields.pounds?.value || 0),
-      ounces: Number(fields.ounces?.value || 0),
-      packageProfile: fields.packageProfile?.value || "lightweight-apparel",
-    };
-  }
-
-  function normalizeShipmentWeight(pounds, ounces) {
-    const totalOunces = Math.max(0, (Number.isFinite(pounds) ? pounds * 16 : 0) + (Number.isFinite(ounces) ? ounces : 0));
-    const normalizedPounds = Math.floor(totalOunces / 16);
-    const normalizedOunces = Number((totalOunces - (normalizedPounds * 16)).toFixed(1));
-    return { pounds: normalizedPounds, ounces: normalizedOunces };
-  }
-
-  function formatShipmentWeight(pounds, ounces) {
-    const parts = [];
-    if (pounds > 0) parts.push(`${pounds} lb`);
-    parts.push(`${ounces} oz`);
-    return parts.join(" ");
-  }
-
-  function renderRateSummary(rates) {
-    if (!rateSummaryEl) return;
-    rateSummaryEl.innerHTML = "";
-
-    if (!rates.length) {
-      rateSummaryEl.innerHTML = `<div class="border rounded p-3 small text-secondary text-center">No USPS estimate generated yet. Enter shipment details and run the builder to see local USPS-style shipping options.</div>`;
-      return;
-    }
-
-    const uspsState = getUspsState();
-    const cheapest = rates[0];
-    const recommended = getRecommendedMarketplaceRate(rates, getReusableState().shippingSpeed);
-    const buyerCharge = getSuggestedBuyerCharge(recommended?.rate ?? cheapest?.rate ?? null);
-    const profile = getShippingProfileConfig(uspsState.packageProfile).label;
-
-    const summary = document.createElement("div");
-    summary.className = "border rounded p-3";
-    summary.innerHTML = `
-      <div class="small text-secondary mb-2">Marketplace Estimate</div>
-      <div class="fw-semibold mb-1">Recommended for eBay-style pricing</div>
-      <div class="small mb-1">Profile: ${escapeHtml(profile)}</div>
-      <div class="small mb-1">Cheapest USPS estimate: $${Number(cheapest.rate).toFixed(2)} via ${escapeHtml(cheapest.service)}</div>
-      <div class="small mb-1">Recommended service: $${Number(recommended.rate).toFixed(2)} via ${escapeHtml(recommended.service)}</div>
-      <div class="small mb-0">Suggested buyer-paid shipping: ${buyerCharge !== null ? `$${buyerCharge.toFixed(2)}` : "Not available"}</div>
-    `;
-    rateSummaryEl.appendChild(summary);
-
-    rates.slice(0, 4).forEach((rate) => {
-      const row = document.createElement("div");
-      row.className = "border rounded p-2 d-flex justify-content-between align-items-center";
-      row.innerHTML = `<span>${escapeHtml(rate.service)}</span><span class="fw-semibold">$${Number(rate.rate).toFixed(2)}</span>`;
-      rateSummaryEl.appendChild(row);
+  function getEditorTemplate() {
+    return buildTemplateRecord({
+      id: selectedTemplateId || uid(),
+      name: fields.name.value.trim(),
+      titlePattern: fields.titlePattern?.value.trim() || "",
+      description: fields.description.value.trim(),
+      shippingNotes: fields.shippingNotes.value.trim(),
+      keywords: fields.keywords.value.trim(),
+      conditionDisclosure: fields.conditionDisclosure.value.trim(),
+      measurementsReminder: fields.measurementsReminder.value.trim(),
+      updatedAt: new Date().toISOString(),
     });
   }
 
-  function buildOutputs(state, uspsState = getUspsState(), rates = latestRates) {
-    const shippingSpeed = labelMaps.shippingSpeed[state.shippingSpeed] || labelMaps.shippingSpeed["next-business-day"];
-    const handlingTime = labelMaps.handlingTime[state.handlingTime] || labelMaps.handlingTime["one-day"];
-    const packagingStyle = labelMaps.packagingStyle[state.packagingStyle] || labelMaps.packagingStyle["clean-folded"];
-    const disclosure = labelMaps.disclosureStyle[state.disclosureStyle] || labelMaps.disclosureStyle.standard;
-    const bundle = labelMaps.combinedShipping[state.combinedShipping] || labelMaps.combinedShipping.encouraged;
-    const thankYou = labelMaps.thankYouTone[state.thankYouTone] || labelMaps.thankYouTone.warm;
-    const weight = normalizeShipmentWeight(uspsState.pounds, uspsState.ounces);
-    const weightLabel = formatShipmentWeight(weight.pounds, weight.ounces);
-    const packageProfile = getShippingProfileConfig(uspsState.packageProfile).label;
-    const cheapestRate = rates[0] || null;
-    const recommendedRate = getRecommendedMarketplaceRate(rates, state.shippingSpeed);
-    const buyerCharge = getSuggestedBuyerCharge(recommendedRate?.rate ?? cheapestRate?.rate ?? null);
-
-    const laneText = uspsState.originZip && uspsState.destinationZip
-      ? `from ZIP ${uspsState.originZip} to ZIP ${uspsState.destinationZip}`
-      : "for the shipment lane entered";
-
-    const uspsRateLine = cheapestRate
-      ? `For a ${weightLabel} package ${laneText}, estimated USPS options start at $${Number(cheapestRate.rate).toFixed(2)} via ${cheapestRate.service}.`
-      : `Add shipment details to generate a local USPS-style estimate for a ${weightLabel} package ${laneText}.`;
-
-    const recommendedLine = recommendedRate
-      ? `Recommended service for marketplace use: ${recommendedRate.service} at about $${Number(recommendedRate.rate).toFixed(2)}. Suggested buyer-paid shipping: ${buyerCharge !== null ? `$${buyerCharge.toFixed(2)}` : "not available"}.`
-      : "";
-
-    return {
-      shipping: `Shipping estimate and template:\nPackage profile: ${packageProfile}\nShipment weight: ${weightLabel}\nThis order ships ${shippingSpeed} with ${handlingTime}. It will be ${packagingStyle}, sent with tracking, and prepared using USPS service options.\n\n${uspsRateLine}\n${recommendedLine}\n\nPaste-ready note:\nShips ${shippingSpeed}. Packed ${packagingStyle}. Estimated USPS shipping is built into the listing plan, and tracking updates once USPS accepts the shipment.`,
-      condition: `Condition disclosure template:\n${disclosure}\n\nPaste-ready note:\nPre-owned item. Please review all photos closely. Add specific flaw details here: [insert flaw details].`,
-      bundle: `Bundle / offer template:\n${bundle}\n\nPaste-ready note:\nBundle requests and reasonable offers are welcome. Combined shipping can be reviewed before purchase when it reduces total shipping cost.`,
-      thanks: `Thank-you / packaging template:\n${thankYou}\n\nPaste-ready note:\nThank you for your order. Your package is being ${packagingStyle} and will ship ${shippingSpeed}. Tracking will update once USPS accepts the shipment.`,
-      listingNotes: `Marketplace-neutral listing notes:\nPlease review photos, measurements, and condition notes before purchasing. Color may vary slightly by screen. Ships ${shippingSpeed} with ${handlingTime}. Add item-specific details here: [insert measurements, materials, flaws, or fit notes].`,
-    };
+  function fillEditor(template) {
+    selectedTemplateId = template?.id || "";
+    fields.name.value = template?.name || "";
+    if (fields.titlePattern) fields.titlePattern.value = template?.titlePattern || "";
+    fields.description.value = template?.description || "";
+    fields.shippingNotes.value = template?.shippingNotes || "";
+    fields.keywords.value = template?.keywords || "";
+    fields.conditionDisclosure.value = template?.conditionDisclosure || "";
+    fields.measurementsReminder.value = template?.measurementsReminder || "";
+    renderPreview();
   }
 
-  function renderOutputs() {
-    const built = buildOutputs(getReusableState(), getUspsState(), latestRates);
-    outputs.shipping.textContent = built.shipping;
-    outputs.condition.textContent = built.condition;
-    outputs.bundle.textContent = built.bundle;
-    outputs.thanks.textContent = built.thanks;
-    outputs.listingNotes.textContent = built.listingNotes;
-    return built;
+  function clearEditor(statusMessage = "") {
+    fillEditor(null);
+    editorStatus.textContent = statusMessage;
   }
 
-  function renderSavedTemplates() {
-    const templates = getSmartTemplates();
-    savedListEl.innerHTML = "";
+  function renderPreview() {
+    const template = getEditorTemplate();
+    previewNodes.description.textContent = renderTemplateTokens(template.description, TEMPLATE_TOKEN_SAMPLES) || "Add a reusable description block.";
+    previewNodes.shipping.textContent = renderTemplateTokens(template.shippingNotes, TEMPLATE_TOKEN_SAMPLES) || "Add reusable shipping notes.";
+    previewNodes.keywords.textContent = renderTemplateTokens(template.keywords, TEMPLATE_TOKEN_SAMPLES) || "Add a reusable keyword block.";
+    previewNodes.condition.textContent = renderTemplateTokens(template.conditionDisclosure, TEMPLATE_TOKEN_SAMPLES) || "Optional condition disclosure appears here.";
+    previewNodes.measurements.textContent = renderTemplateTokens(template.measurementsReminder, TEMPLATE_TOKEN_SAMPLES) || "Optional measurements reminder appears here.";
+  }
+
+  function renderLibrary() {
+    const templates = getTemplates();
+    libraryList.innerHTML = "";
 
     if (!templates.length) {
-      savedListEl.innerHTML = `<div class="saved-template-empty">Save the copy blocks you use most so they are ready the next time you prep listings.</div>`;
+      libraryList.innerHTML = `<div class="saved-template-empty">No templates saved yet. Create 1 here, then use Apply Template on <a href="new-listing.html">Create Listing</a> when you start a new item.</div>`;
       return;
     }
 
     templates.forEach((template) => {
-      const kindLabel = {
-        shipping: "USPS Shipping Template",
-        condition: "Condition Disclosure",
-        bundle: "Bundle / Offer Language",
-        thanks: "Thank-You Note",
-        "listing-notes": "Listing Notes",
-      }[template.kind] || "Template";
-
       const card = document.createElement("article");
-      card.className = "saved-template-card";
+      card.className = `saved-template-card template-library-card${template.id === selectedTemplateId ? " is-active" : ""}`;
       card.innerHTML = `
         <div class="saved-template-card__header">
           <div>
             <p class="saved-template-card__name mb-1">${escapeHtml(template.name || "Untitled Template")}</p>
-            <p class="saved-template-card__meta mb-0">${escapeHtml(kindLabel)} · Updated ${escapeHtml(formatDate(template.updatedAt))}</p>
+            <p class="saved-template-card__meta mb-0">Updated ${escapeHtml(formatDate(template.updatedAt))}</p>
           </div>
-          <span class="dashboard-sku">${escapeHtml(kindLabel)}</span>
+          <span class="dashboard-sku">Template</span>
         </div>
-        <pre class="saved-template-card__preview">${escapeHtml(template.text || "")}</pre>
+        <pre class="saved-template-card__preview">${escapeHtml(renderTemplateTokens(template.titlePattern || template.description, TEMPLATE_TOKEN_SAMPLES) || "No preview yet.")}</pre>
         <div class="saved-template-card__actions">
-          <button class="btn btn-outline-secondary btn-sm" type="button" data-apply-template="${escapeHtml(template.id)}">Apply Inputs</button>
-          <button class="btn btn-outline-secondary btn-sm" type="button" data-copy-template="${escapeHtml(template.id)}">Copy</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-edit-template="${escapeHtml(template.id)}">Edit</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-duplicate-template="${escapeHtml(template.id)}">Duplicate</button>
           <button class="btn btn-outline-danger btn-sm" type="button" data-delete-template="${escapeHtml(template.id)}">Delete</button>
         </div>
       `;
 
-      card.querySelector("[data-apply-template]").addEventListener("click", () => {
-        applyReusableState(template.variables || defaultState);
-        renderOutputs();
-        savedStatusEl.textContent = `${template.name || "Template"} applied to the workspace.`;
+      card.querySelector("[data-edit-template]").addEventListener("click", () => {
+        fillEditor(template);
+        renderLibrary();
+        libraryStatus.textContent = `${template.name || "Template"} loaded into the editor.`;
       });
 
-      card.querySelector("[data-copy-template]").addEventListener("click", async () => {
-        const ok = await copyText(template.text || "");
-        savedStatusEl.textContent = ok ? `${template.name || "Template"} copied.` : "Copy failed. Select and copy manually.";
+      card.querySelector("[data-duplicate-template]").addEventListener("click", () => {
+        const duplicate = duplicateTemplate(template.id);
+        renderLibrary();
+        if (duplicate) {
+          fillEditor(duplicate);
+          renderLibrary();
+          libraryStatus.textContent = `${duplicate.name} created.`;
+        }
       });
 
       card.querySelector("[data-delete-template]").addEventListener("click", () => {
-        removeSmartTemplate(template.id);
-        renderSavedTemplates();
-        savedStatusEl.textContent = "Saved template deleted.";
+        removeTemplate(template.id);
+        if (selectedTemplateId === template.id) clearEditor();
+        renderLibrary();
+        libraryStatus.textContent = "Template deleted.";
       });
 
-      savedListEl.appendChild(card);
+      libraryList.appendChild(card);
     });
   }
 
-  buildTemplateWorkspaceBtn.addEventListener("click", () => {
-    renderOutputs();
-    statusEl.textContent = "Templates updated.";
+  Object.values(fields).forEach((field) => {
+    field.addEventListener("input", renderPreview);
+    field.addEventListener("change", renderPreview);
   });
 
-  resetTemplateWorkspaceBtn.addEventListener("click", () => {
-    applyReusableState(defaultState);
-    latestRates = [];
-    renderRateSummary(latestRates);
-    renderOutputs();
-    statusEl.textContent = "Inputs reset.";
+  createBtn?.addEventListener("click", () => {
+    clearEditor("New template started.");
+    libraryStatus.textContent = "";
   });
 
-  [
-    fields.shippingSpeed,
-    fields.handlingTime,
-    fields.packagingStyle,
-    fields.disclosureStyle,
-    fields.combinedShipping,
-    fields.thankYouTone,
-    fields.originZip,
-    fields.destinationZip,
-    fields.pounds,
-    fields.ounces,
-    fields.packageProfile,
-  ].forEach((field) => {
-    if (!field) return;
-    field.addEventListener("input", renderOutputs);
-    field.addEventListener("change", renderOutputs);
+  saveBtn?.addEventListener("click", () => {
+    const template = getEditorTemplate();
+    if (!template.name) {
+      editorStatus.textContent = "Template name is required.";
+      return;
+    }
+    upsertTemplate(template);
+    selectedTemplateId = template.id;
+    renderLibrary();
+    editorStatus.textContent = "Template saved.";
   });
 
-  if (buildShippingTemplateBtn) {
-    buildShippingTemplateBtn.addEventListener("click", () => {
-      const uspsState = getUspsState();
-      const { pounds, ounces } = normalizeShipmentWeight(uspsState.pounds, uspsState.ounces);
-
-      if (uspsState.originZip.length !== 5 || uspsState.destinationZip.length !== 5) {
-        shippingStatusEl.textContent = "Enter valid 5-digit origin and destination ZIP codes.";
-        renderOutputs();
-        return;
+  duplicateBtn?.addEventListener("click", () => {
+    if (selectedTemplateId) {
+      const duplicate = duplicateTemplate(selectedTemplateId);
+      renderLibrary();
+      if (duplicate) {
+        fillEditor(duplicate);
+        renderLibrary();
+        editorStatus.textContent = "Template duplicated.";
       }
-      if ((pounds * 16) + ounces <= 0) {
-        shippingStatusEl.textContent = "Enter a shipment weight greater than 0 oz.";
-        renderOutputs();
-        return;
-      }
+      return;
+    }
 
-      latestRates = estimateUspsRates({
-        originZip: uspsState.originZip,
-        destinationZip: uspsState.destinationZip,
-        pounds,
-        ounces,
-        packageProfile: uspsState.packageProfile,
-      });
-      renderRateSummary(latestRates);
-      renderOutputs();
-      shippingStatusEl.textContent = "Shipping estimate updated.";
-    });
-  }
+    const draftTemplate = getEditorTemplate();
+    if (!draftTemplate.name) {
+      editorStatus.textContent = "Save or name the template before duplicating it.";
+      return;
+    }
+    draftTemplate.id = uid();
+    draftTemplate.name = `${draftTemplate.name} Copy`;
+    upsertTemplate(draftTemplate);
+    fillEditor(draftTemplate);
+    renderLibrary();
+    editorStatus.textContent = "Template duplicated.";
+  });
 
-  if (copyShippingTemplateBtn) {
-    copyShippingTemplateBtn.addEventListener("click", async () => {
-      const ok = await copyText(outputs.shipping?.textContent || "");
-      shippingStatusEl.textContent = ok ? "Shipping template copied." : "Copy failed. Select and copy manually.";
-    });
-  }
+  clearBtn?.addEventListener("click", () => {
+    clearEditor("Editor cleared.");
+  });
 
-  document.querySelectorAll(".template-copy-btn").forEach((button) => {
+  deleteBtn?.addEventListener("click", () => {
+    if (!selectedTemplateId) {
+      editorStatus.textContent = "Select a saved template before deleting it.";
+      return;
+    }
+    removeTemplate(selectedTemplateId);
+    clearEditor("Template deleted.");
+    renderLibrary();
+  });
+
+  document.querySelectorAll(".template-preview-copy-btn").forEach((button) => {
     button.addEventListener("click", async () => {
       const target = document.getElementById(button.getAttribute("data-copy-target"));
       const ok = await copyText(target?.textContent || "");
-      statusEl.textContent = ok ? "Template copied." : "Copy failed. Select and copy manually.";
+      editorStatus.textContent = ok ? "Preview block copied." : "Copy failed. Select and copy manually.";
     });
   });
 
-  document.querySelectorAll(".template-save-btn").forEach((button) => {
-    button.addEventListener("click", () => {
-      const target = document.getElementById(button.getAttribute("data-save-target"));
-      const kind = button.getAttribute("data-save-kind") || "template";
-      const text = String(target?.textContent || "").trim();
-      if (!text) {
-        statusEl.textContent = "Generate template text before saving.";
-        return;
-      }
-      const name = window.prompt("Name this reusable template:");
-      if (!name) return;
-
-      upsertSmartTemplate({
-        id: uid(),
-        name: name.trim(),
-        kind,
-        text,
-        variables: getReusableState(),
-        updatedAt: new Date().toISOString(),
-      });
-      renderSavedTemplates();
-      savedStatusEl.textContent = `${name.trim()} saved to LocalStorage.`;
-    });
-  });
-
-  applyReusableState(defaultState);
-  renderRateSummary(latestRates);
-  renderOutputs();
-  renderSavedTemplates();
+  const initialTemplates = getTemplates();
+  if (initialTemplates.length) {
+    fillEditor(initialTemplates[0]);
+  } else {
+    clearEditor();
+  }
+  renderLibrary();
+  renderPreview();
 }
 
 function initAboutPage() {
@@ -1707,9 +1679,9 @@ function initFeaturesPage() {
 
   const items = [
     { label: "5 essential required inputs in Create Listing", ok: true },
-    { label: "Formula pricing helper available", ok: typeof getSuggestedRange === "function" },
-    { label: "eBay comps support available", ok: ENABLE_LIVE_EBAY_COMPS || ENABLE_DEMO_EBAY_COMPS },
-    { label: "Smart templates workspace available", ok: true },
+    { label: "Formula pricing helper", ok: typeof getSuggestedRange === "function" },
+    { label: "eBay comps support", ok: ENABLE_LIVE_EBAY_COMPS || ENABLE_DEMO_EBAY_COMPS },
+    { label: "Smart templates workspace", ok: true },
     { label: "Local draft and listing storage", ok: typeof localStorage !== "undefined" },
     { label: "Dashboard export tools", ok: typeof exportCSV === "function" },
   ];
@@ -1719,7 +1691,7 @@ function initFeaturesPage() {
   items.forEach((item) => {
     const row = document.createElement("div");
     row.className = "border rounded p-2 d-flex justify-content-between align-items-center";
-    row.innerHTML = `<span>${escapeHtml(item.label)}</span><span class="${item.ok ? "text-success" : "text-danger"} fw-semibold">${item.ok ? "Active" : "Unavailable"}</span>`;
+    row.innerHTML = `<span>${escapeHtml(item.label)}</span><span class="${item.ok ? "text-success" : "text-danger"} fw-semibold">${item.ok ? "Active" : "Off"}</span>`;
     list.appendChild(row);
   });
 }
@@ -1833,12 +1805,16 @@ function initIntegrationsPage() {
 
   const checklist = $("#integrationChecklist");
   function renderChecklist() {
+    const templateCount = getTemplates().length;
+    const draft = loadDraft();
+    const listings = getListings();
     const rows = [
-      { label: "Saved listings in this browser", value: String(getListings().length) },
-      { label: "Draft recovery", value: loadDraft() ? "Available" : "No active draft" },
-      { label: "Smart templates saved locally", value: String(getSmartTemplates().length) },
-      { label: "Optional live eBay comps", value: ENABLE_LIVE_EBAY_COMPS ? "Enabled" : "Off" },
-      { label: "Demo comps fallback", value: ENABLE_DEMO_EBAY_COMPS ? "Available" : "Off" },
+      { label: "Create Listing -> Dashboard", value: listings.length ? `${listings.length} saved listing${listings.length === 1 ? "" : "s"}` : "No saved listings yet" },
+      { label: "Draft recovery in Create Listing", value: draft ? "Draft found" : "No active draft" },
+      { label: "Smart Templates -> Create Listing", value: templateCount ? `${templateCount} saved template${templateCount === 1 ? "" : "s"}` : "No saved templates yet" },
+      { label: "Pricing helper in Create Listing", value: "Included" },
+      { label: "Dashboard export tools", value: listings.length ? "Included" : "Shown once listings are saved" },
+      { label: "Local browser storage", value: typeof localStorage !== "undefined" ? "Active" : "Unavailable" },
     ];
 
     checklist.innerHTML = "";
@@ -1858,7 +1834,7 @@ function initIntegrationsPage() {
 
   btn.addEventListener("click", () => {
     renderChecklist();
-    status.textContent = "Readiness check complete. Local saving, templates, and dashboard tools are available in this browser.";
+    status.textContent = "Integrations refreshed. Local saving, templates, pricing, and dashboard handoff are active in this browser.";
   });
 }
 

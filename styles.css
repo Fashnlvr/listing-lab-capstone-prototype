@@ -1736,9 +1736,30 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   border-color: var(--ll-line);
 }
 
+.templates-library-card .card-body {
+  padding: 1rem 1.05rem;
+}
+
+.templates-library-note {
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(74, 21, 56, 0.08);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(250, 249, 250, 0.98) 0%, rgba(243, 239, 242, 0.98) 100%);
+}
+
 .templates-output-grid {
   display: grid;
   gap: 1rem;
+}
+
+.templates-preview-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.templates-preview-section {
+  display: grid;
+  gap: 0.7rem;
 }
 
 .template-output-card .card-body {
@@ -1765,6 +1786,8 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   color: var(--ll-text);
   font-size: 0.98rem;
   line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .saved-template-list {
@@ -1772,11 +1795,26 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   gap: 0.9rem;
 }
 
+@media (min-width: 992px) {
+  .saved-template-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
 .saved-template-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   padding: 1rem 1.05rem;
   border: 1px solid var(--ll-line);
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 243, 248, 0.98) 100%);
+}
+
+.template-library-card.is-active {
+  border-color: rgba(74, 21, 56, 0.22);
+  box-shadow: 0 0 0 2px rgba(74, 21, 56, 0.08);
 }
 
 .saved-template-card__name {
@@ -1789,11 +1827,19 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   color: var(--ll-muted);
 }
 
+.saved-template-card__preview {
+  min-height: 6.25rem;
+  font-size: 0.9rem;
+  flex: 1 1 auto;
+}
+
 .saved-template-card__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
   margin-top: 0.85rem;
+  justify-content: flex-start;
+  align-items: flex-start;
 }
 
 .saved-template-empty {
@@ -1807,6 +1853,20 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 243, 248, 0.98) 100%);
   color: var(--ll-muted);
   text-align: center;
+}
+
+.saved-template-empty a {
+  color: var(--ll-accent);
+  font-weight: 700;
+}
+
+.templates-workspace .form-text {
+  color: var(--ll-muted);
+  line-height: 1.55;
+}
+
+.templates-workspace .h5 {
+  color: var(--ll-text);
 }
 
 .utility-page #featureStatusList {
