@@ -60,9 +60,9 @@
   <main id="main-content" class="container py-4">
     <section class="card mb-4 templates-hero-card">
       <div class="card-body">
-        <h1 class="h3">Smart Shipping Templates</h1>
+        <h1 class="h3">Smart Templates</h1>
         <p class="text-secondary mb-0">
-          Use the USPS shipping builder as your main template tool, then keep a few reusable resale notes ready for condition disclosures, offers, and packing inserts. Saved template settings stay local to this browser.
+          Generate reusable shipping and resale copy, then save the templates you actually use. Everything stays local to this browser.
         </p>
       </div>
     </section>
@@ -71,14 +71,10 @@
       <section class="col-12 col-xl-5">
         <div class="card mb-4">
           <div class="card-body">
-            <h2 class="h5">USPS Shipping Builder</h2>
-            <p class="text-secondary mb-3">Save your USPS Web Tools User ID locally, check available services for a shipment, and generate a paste-ready shipping template from the result.</p>
+            <h2 class="h5">Shipping Estimate</h2>
+            <p class="text-secondary mb-3">Estimate USPS shipping costs you can use for marketplace pricing decisions.</p>
 
             <div class="row g-3">
-              <div class="col-12">
-                <label class="form-label" for="shipUspsUserId">USPS Web Tools User ID</label>
-                <input class="form-control" id="shipUspsUserId" type="text" placeholder="Enter your USPS User ID" autocomplete="off" />
-              </div>
               <div class="col-12 col-md-6">
                 <label class="form-label" for="shipOriginZip">Origin ZIP</label>
                 <input class="form-control" id="shipOriginZip" inputmode="numeric" maxlength="5" placeholder="e.g., 10001" />
@@ -94,6 +90,15 @@
               <div class="col-12 col-md-6">
                 <label class="form-label" for="shipWeightOz">Weight (oz)</label>
                 <input class="form-control" id="shipWeightOz" type="number" min="0" max="15.999" step="0.1" value="12" />
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="shipPackageProfile">Package Profile</label>
+                <select class="form-select" id="shipPackageProfile">
+                  <option value="lightweight-apparel">Lightweight apparel</option>
+                  <option value="shoes">Shoes</option>
+                  <option value="handbag">Handbag</option>
+                  <option value="bulky">Bulky item</option>
+                </select>
               </div>
               <div class="col-12 col-md-6">
                 <label class="form-label" for="templateShippingSpeed">Shipping Speed</label>
@@ -114,8 +119,7 @@
             </div>
 
             <div class="d-flex flex-wrap gap-2 mt-3">
-              <button class="btn btn-outline-secondary" id="saveUspsUserIdBtn" type="button">Save USPS User ID</button>
-              <button class="btn btn-dark" id="buildShippingTemplateBtn" type="button">Fetch USPS Rates + Build Template</button>
+              <button class="btn btn-dark" id="buildShippingTemplateBtn" type="button">Generate Shipping Estimate</button>
             </div>
 
             <p id="templateShippingStatus" class="small text-secondary mt-3 mb-0" role="status" aria-live="polite"></p>
@@ -124,8 +128,8 @@
 
         <div class="card h-100">
           <div class="card-body">
-            <h2 class="h5">Reusable Template Settings</h2>
-            <p class="text-secondary mb-3">These inputs stay generic on purpose, so the same settings work across many listings.</p>
+            <h2 class="h5">Template Settings</h2>
+            <p class="text-secondary mb-3">Set the reusable options that shape your saved smart templates.</p>
 
             <div class="row g-3">
               <div class="col-12">
@@ -163,7 +167,7 @@
             </div>
 
             <div class="d-flex flex-wrap gap-2 mt-3">
-              <button class="btn btn-dark" id="buildTemplateWorkspaceBtn" type="button">Refresh Reusable Copy</button>
+              <button class="btn btn-dark" id="buildTemplateWorkspaceBtn" type="button">Generate Templates</button>
               <button class="btn btn-outline-secondary" id="resetTemplateWorkspaceBtn" type="button">Reset Inputs</button>
             </div>
 
@@ -178,8 +182,8 @@
             <div class="card-body">
               <div class="template-output-card__header">
                 <div>
-                  <p class="preview-section-label mb-1">USPS Shipping Template</p>
-                  <p class="small text-secondary mb-0">Built from your USPS shipment details and reusable seller settings.</p>
+                  <p class="preview-section-label mb-1">Shipping Template</p>
+                  <p class="small text-secondary mb-0">Use this estimate to choose a service and set buyer-paid shipping.</p>
                 </div>
                 <div class="d-flex gap-2">
                   <button class="btn btn-outline-secondary btn-sm" id="copyShippingTemplateBtn" type="button">Copy</button>
@@ -196,7 +200,7 @@
               <div class="template-output-card__header">
                 <div>
                   <p class="preview-section-label mb-1">Condition Disclosure</p>
-                  <p class="small text-secondary mb-0">Reusable disclosure language with placeholders for listing-specific details.</p>
+                  <p class="small text-secondary mb-0">Reusable condition copy with listing-specific placeholders.</p>
                 </div>
                 <div class="d-flex gap-2">
                   <button class="btn btn-outline-secondary btn-sm template-copy-btn" type="button" data-copy-target="templateConditionOutput">Copy</button>
@@ -212,7 +216,7 @@
               <div class="template-output-card__header">
                 <div>
                   <p class="preview-section-label mb-1">Bundle / Offer Language</p>
-                  <p class="small text-secondary mb-0">Simple reusable replies for offers and bundle questions.</p>
+                  <p class="small text-secondary mb-0">Reusable replies for offers and bundle questions.</p>
                 </div>
                 <div class="d-flex gap-2">
                   <button class="btn btn-outline-secondary btn-sm template-copy-btn" type="button" data-copy-target="templateBundleOutput">Copy</button>
@@ -228,7 +232,7 @@
               <div class="template-output-card__header">
                 <div>
                   <p class="preview-section-label mb-1">Thank-You / Packaging Note</p>
-                  <p class="small text-secondary mb-0">Packaging insert copy that works across many orders.</p>
+                  <p class="small text-secondary mb-0">Reusable insert copy for shipped orders.</p>
                 </div>
                 <div class="d-flex gap-2">
                   <button class="btn btn-outline-secondary btn-sm template-copy-btn" type="button" data-copy-target="templateThankYouOutput">Copy</button>
@@ -262,8 +266,8 @@
       <div class="card-body">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
           <div>
-            <h2 class="h5 mb-1">Saved Reusable Templates</h2>
-            <p class="text-secondary mb-0">Save the copy blocks you actually use and re-apply them later from LocalStorage.</p>
+            <h2 class="h5 mb-1">Saved Templates</h2>
+            <p class="text-secondary mb-0">Saved locally in this browser.</p>
           </div>
         </div>
         <p id="savedTemplateStatus" class="small text-secondary mb-3" role="status" aria-live="polite"></p>
@@ -282,7 +286,7 @@
             </span>
           </p>
           <p class="small text-secondary mb-0">Local resale prep workspace for pricing, listing copy, and inventory tracking.</p>
-          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Start a Listing</a>
+          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Create a Listing</a>
         </div>
         <div class="col-6 col-lg-2">
           <p class="small text-uppercase text-secondary mb-2">Product</p>

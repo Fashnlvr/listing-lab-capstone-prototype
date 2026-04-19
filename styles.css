@@ -994,7 +994,7 @@ body.home-page .home-workflow-card--four::after {
 
 body.home-page .home-row-workflow .home-workflow-kicker {
   display: block;
-  font-size: 0.84rem !important;
+  font-size: 0.94rem !important;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 700;
@@ -1009,7 +1009,7 @@ body.home-page .home-workflow-card .fw-semibold {
   margin-bottom: 0.7rem !important;
   margin-left: auto;
   margin-right: auto;
-  color: var(--ll-accent);
+  color: var(--ll-text);
 }
 
 body.home-page .home-workflow-card .small {
@@ -1129,6 +1129,7 @@ body.home-page .home-workflow-note span {
 .home-tool-card .fw-semibold {
   font-size: 1.42rem;
   line-height: 1.15;
+  color: var(--ll-text);
 }
 
 .home-tool-card .small {
@@ -1187,12 +1188,14 @@ body.home-page .home-workflow-note span {
   text-transform: uppercase;
   font-size: 0.84rem !important;
   margin-bottom: 0.9rem !important;
+  color: var(--ll-accent);
 }
 
 .home-stat-card .display-6 {
   font-size: clamp(3.2rem, 5vw, 4.4rem);
   line-height: 0.95;
   margin-bottom: 0.55rem !important;
+  color: var(--ll-text);
 }
 
 .home-stat-card .small:last-child {
@@ -1201,6 +1204,7 @@ body.home-page .home-workflow-note span {
   line-height: 1.65;
   margin-left: auto;
   margin-right: auto;
+  color: var(--ll-muted);
 }
 
 .home-stat-card--inputs .card-body::before,
@@ -1279,6 +1283,7 @@ body.home-page .home-workflow-note span {
   z-index: 1;
   display: flex;
   flex-direction: column;
+  gap: 0.6rem;
   justify-content: center;
   align-items: center;
   min-height: 100%;
@@ -1319,22 +1324,14 @@ body.home-page .home-row-insights .home-insight-card--prep .small.text-secondary
 
 body.home-page .home-row-insights .home-insight-card--prep .small.text-secondary {
   color: var(--ll-muted) !important;
-  max-width: 30rem;
-  font-size: 1.18rem !important;
-  line-height: 1.8;
-  font-weight: 500;
 }
 
 body.home-page .home-row-insights .home-insight-card--prep .h5 {
-  max-width: 28rem;
-  font-size: 1.78rem;
-  line-height: 1.12;
-  margin-bottom: 0.85rem !important;
+  color: var(--ll-text) !important;
 }
 
 body.home-page .home-row-insights .home-insight-card--prep .home-section-kicker {
   color: var(--ll-accent) !important;
-  margin-bottom: 0.55rem !important;
 }
 
 body.home-page .home-row-insights .home-insight-card--prep::after {
@@ -1405,11 +1402,8 @@ body.home-page .col-lg-6 .home-panel {
   text-align: left;
 }
 
-body.home-page .home-panel .h5,
 body.home-page .home-step-card .fw-semibold,
-body.home-page .home-tool-card .fw-semibold,
 body.home-page .home-discover .mb-0:not(.text-secondary),
-body.home-page .home-panel .display-6,
 body.home-page .home-workflow-kicker,
 body.home-page .home-section-kicker {
   color: var(--ll-accent);
@@ -1469,13 +1463,13 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ll-muted);
+  color: var(--ll-accent);
 }
 
 .dashboard-summary-card__value {
   font-size: clamp(1.9rem, 1.3rem + 1vw, 2.45rem);
   line-height: 1;
-  color: var(--ll-accent);
+  color: var(--ll-text);
   font-weight: 700;
 }
 
@@ -1605,7 +1599,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 .dashboard-item-title {
   display: inline-block;
   margin-bottom: 0.2rem;
-  color: var(--ll-accent);
+  color: var(--ll-text);
 }
 
 .dashboard-item-meta {
@@ -1725,7 +1719,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   font-family: "Skia", "Avenir Next", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
   font-size: 1.55rem;
   line-height: 1.12;
-  color: var(--ll-accent);
+  color: var(--ll-text);
   margin-bottom: 0.95rem;
 }
 
@@ -1787,7 +1781,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 
 .saved-template-card__name {
   font-weight: 700;
-  color: var(--ll-accent);
+  color: var(--ll-text);
 }
 
 .saved-template-card__meta {
@@ -1872,7 +1866,7 @@ body.utility-page #calcStatus {
   line-height: 1.05;
   letter-spacing: -0.04em;
   font-weight: 700;
-  color: var(--ll-accent);
+  color: var(--ll-text);
   margin-bottom: 0.7rem !important;
 }
 
@@ -2398,20 +2392,28 @@ footer li[aria-label="Social media icons (not linked)"] {
 @media (max-width: 991.98px) {
   .navbar .container {
     position: relative;
-    justify-content: flex-end;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: center;
+    justify-content: initial;
   }
 
   .navbar .navbar-brand {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
+    position: static;
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: center;
     margin-left: 0;
-    max-width: calc(100% - 5.75rem);
+    max-width: min(100%, 13rem);
     text-align: center;
     white-space: nowrap;
   }
 
   .navbar-toggler {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
     margin-left: auto;
     margin-right: 0;
     width: 2.55rem;
@@ -2420,6 +2422,8 @@ footer li[aria-label="Social media icons (not linked)"] {
   }
 
   .navbar .navbar-collapse {
+    grid-column: 1 / -1;
+    grid-row: 2;
     flex-basis: 100%;
     width: 100%;
     margin-top: 0.65rem;
@@ -2513,6 +2517,13 @@ footer li[aria-label="Social media icons (not linked)"] {
 }
 
 @media (max-width: 767.98px) {
+  body.home-page,
+  body.interior-page {
+    background-attachment: scroll;
+    background-position: center top;
+    background-size: 185% auto;
+  }
+
   .card,
   .table-responsive,
   footer .row {

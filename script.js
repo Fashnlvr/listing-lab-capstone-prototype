@@ -417,6 +417,91 @@ async function fetchUspsRates({ userId, originZip, destinationZip, pounds, ounce
   return entries.sort((a, b) => a.rate - b.rate);
 }
 
+function estimateUspsRates({ originZip, destinationZip, pounds, ounces, packageProfile }) {
+  const profileConfig = getShippingProfileConfig(packageProfile);
+  const normalized = normalizeShipmentWeightForEstimate(pounds, ounces);
+  const totalOunces = (normalized.pounds * 16) + normalized.ounces + profileConfig.extraOunces;
+  const originPrefix = Number(String(originZip || "").slice(0, 3));
+  const destinationPrefix = Number(String(destinationZip || "").slice(0, 3));
+  const zoneDistance = Number.isFinite(originPrefix) && Number.isFinite(destinationPrefix)
+    ? Math.abs(originPrefix - destinationPrefix)
+    : 0;
+
+  let zoneMultiplier = 1;
+  if (zoneDistance >= 600) zoneMultiplier = 1.26;
+  else if (zoneDistance >= 300) zoneMultiplier = 1.14;
+  else if (zoneDistance >= 120) zoneMultiplier = 1.07;
+
+  const roundedWeight = Math.max(4, Math.ceil(totalOunces));
+
+  const ground = Number((estimateRate(4.95, roundedWeight, 0.17, zoneMultiplier) * profileConfig.multipliers.ground).toFixed(2));
+  const priority = Number((estimateRate(8.4, roundedWeight, 0.22, zoneMultiplier) * profileConfig.multipliers.priority).toFixed(2));
+  const priorityPadded = Number((estimateRate(9.15, roundedWeight, 0.18, zoneMultiplier) * profileConfig.multipliers.padded).toFixed(2));
+  const express = Number((estimateRate(28.5, roundedWeight, 0.35, zoneMultiplier) * profileConfig.multipliers.express).toFixed(2));
+
+  return [
+    { service: "USPS Ground Advantage", rate: ground, source: "Local estimate" },
+    { service: "USPS Priority Mail", rate: priority, source: "Local estimate" },
+    { service: "USPS Priority Mail Flat Rate / Padded", rate: priorityPadded, source: "Local estimate" },
+    { service: "USPS Priority Mail Express", rate: express, source: "Local estimate" },
+  ].sort((a, b) => a.rate - b.rate);
+}
+
+function normalizeShipmentWeightForEstimate(pounds, ounces) {
+  const totalOunces = Math.max(0, (Number.isFinite(pounds) ? pounds * 16 : 0) + (Number.isFinite(ounces) ? ounces : 0));
+  const normalizedPounds = Math.floor(totalOunces / 16);
+  const normalizedOunces = Number((totalOunces - (normalizedPounds * 16)).toFixed(1));
+  return { pounds: normalizedPounds, ounces: normalizedOunces };
+}
+
+function estimateRate(base, ounces, perOunce, zoneMultiplier) {
+  return Number((base + (Math.max(0, ounces - 4) * perOunce * zoneMultiplier)).toFixed(2));
+}
+
+const SHIPPING_PROFILE_CONFIG = {
+  "lightweight-apparel": {
+    label: "Lightweight apparel",
+    extraOunces: 2,
+    multipliers: { ground: 1, priority: 0.98, padded: 0.97, express: 1 },
+  },
+  shoes: {
+    label: "Shoes",
+    extraOunces: 6,
+    multipliers: { ground: 1.08, priority: 1.04, padded: 1.02, express: 1.03 },
+  },
+  handbag: {
+    label: "Handbag",
+    extraOunces: 8,
+    multipliers: { ground: 1.12, priority: 1.08, padded: 1.05, express: 1.03 },
+  },
+  bulky: {
+    label: "Bulky item",
+    extraOunces: 14,
+    multipliers: { ground: 1.18, priority: 1.14, padded: 1.1, express: 1.06 },
+  },
+};
+
+function getShippingProfileConfig(profileKey) {
+  return SHIPPING_PROFILE_CONFIG[profileKey] || SHIPPING_PROFILE_CONFIG["lightweight-apparel"];
+}
+
+function getRecommendedMarketplaceRate(rates, shippingSpeed) {
+  if (!rates.length) return null;
+  const preferredService = {
+    "next-business-day": "USPS Priority Mail Express",
+    "two-business-days": "USPS Priority Mail",
+    "three-business-days": "USPS Ground Advantage",
+  }[shippingSpeed] || "USPS Ground Advantage";
+
+  return rates.find((rate) => rate.service === preferredService) || rates[0];
+}
+
+function getSuggestedBuyerCharge(rate) {
+  if (!Number.isFinite(rate)) return null;
+  const buffered = rate + 0.75;
+  return Number((Math.ceil(buffered * 2) / 2).toFixed(2));
+}
+
 function prettyCategory(value) {
   const map = {
     tops: "Tops",
@@ -1243,11 +1328,11 @@ function initTemplatesPage() {
   if (!pageHas("#templatesWorkspace")) return;
 
   const fields = {
-    uspsUserId: $("#shipUspsUserId"),
     originZip: $("#shipOriginZip"),
     destinationZip: $("#shipDestZip"),
     pounds: $("#shipWeightPounds"),
     ounces: $("#shipWeightOz"),
+    packageProfile: $("#shipPackageProfile"),
     shippingSpeed: $("#templateShippingSpeed"),
     handlingTime: $("#templateHandlingTime"),
     packagingStyle: $("#templatePackagingStyle"),
@@ -1269,7 +1354,6 @@ function initTemplatesPage() {
   const savedStatusEl = $("#savedTemplateStatus");
   const savedListEl = $("#savedTemplateList");
   const rateSummaryEl = $("#templateRateSummary");
-  const saveUspsUserIdBtn = $("#saveUspsUserIdBtn");
   const buildShippingTemplateBtn = $("#buildShippingTemplateBtn");
   const copyShippingTemplateBtn = $("#copyShippingTemplateBtn");
   const buildTemplateWorkspaceBtn = $("#buildTemplateWorkspaceBtn");
@@ -1341,11 +1425,11 @@ function initTemplatesPage() {
 
   function getUspsState() {
     return {
-      userId: fields.uspsUserId?.value.trim() || "",
       originZip: String(fields.originZip?.value || "").replace(/\D/g, "").slice(0, 5),
       destinationZip: String(fields.destinationZip?.value || "").replace(/\D/g, "").slice(0, 5),
       pounds: Number(fields.pounds?.value || 0),
       ounces: Number(fields.ounces?.value || 0),
+      packageProfile: fields.packageProfile?.value || "lightweight-apparel",
     };
   }
 
@@ -1368,9 +1452,27 @@ function initTemplatesPage() {
     rateSummaryEl.innerHTML = "";
 
     if (!rates.length) {
-      rateSummaryEl.innerHTML = `<div class="border rounded p-3 small text-secondary text-center">No USPS rates loaded yet. Save a USPS User ID, enter shipment details, and run the builder when you want a live quote.</div>`;
+      rateSummaryEl.innerHTML = `<div class="border rounded p-3 small text-secondary text-center">No USPS estimate generated yet. Enter shipment details and run the builder to see local USPS-style shipping options.</div>`;
       return;
     }
+
+    const uspsState = getUspsState();
+    const cheapest = rates[0];
+    const recommended = getRecommendedMarketplaceRate(rates, getReusableState().shippingSpeed);
+    const buyerCharge = getSuggestedBuyerCharge(recommended?.rate ?? cheapest?.rate ?? null);
+    const profile = getShippingProfileConfig(uspsState.packageProfile).label;
+
+    const summary = document.createElement("div");
+    summary.className = "border rounded p-3";
+    summary.innerHTML = `
+      <div class="small text-secondary mb-2">Marketplace Estimate</div>
+      <div class="fw-semibold mb-1">Recommended for eBay-style pricing</div>
+      <div class="small mb-1">Profile: ${escapeHtml(profile)}</div>
+      <div class="small mb-1">Cheapest USPS estimate: $${Number(cheapest.rate).toFixed(2)} via ${escapeHtml(cheapest.service)}</div>
+      <div class="small mb-1">Recommended service: $${Number(recommended.rate).toFixed(2)} via ${escapeHtml(recommended.service)}</div>
+      <div class="small mb-0">Suggested buyer-paid shipping: ${buyerCharge !== null ? `$${buyerCharge.toFixed(2)}` : "Not available"}</div>
+    `;
+    rateSummaryEl.appendChild(summary);
 
     rates.slice(0, 4).forEach((rate) => {
       const row = document.createElement("div");
@@ -1389,18 +1491,25 @@ function initTemplatesPage() {
     const thankYou = labelMaps.thankYouTone[state.thankYouTone] || labelMaps.thankYouTone.warm;
     const weight = normalizeShipmentWeight(uspsState.pounds, uspsState.ounces);
     const weightLabel = formatShipmentWeight(weight.pounds, weight.ounces);
+    const packageProfile = getShippingProfileConfig(uspsState.packageProfile).label;
     const cheapestRate = rates[0] || null;
+    const recommendedRate = getRecommendedMarketplaceRate(rates, state.shippingSpeed);
+    const buyerCharge = getSuggestedBuyerCharge(recommendedRate?.rate ?? cheapestRate?.rate ?? null);
 
     const laneText = uspsState.originZip && uspsState.destinationZip
       ? `from ZIP ${uspsState.originZip} to ZIP ${uspsState.destinationZip}`
       : "for the shipment lane entered";
 
     const uspsRateLine = cheapestRate
-      ? `For a ${weightLabel} package ${laneText}, current USPS options start at $${Number(cheapestRate.rate).toFixed(2)} via ${cheapestRate.service}.`
-      : `USPS quote details can be added once live rates are fetched for a ${weightLabel} package ${laneText}.`;
+      ? `For a ${weightLabel} package ${laneText}, estimated USPS options start at $${Number(cheapestRate.rate).toFixed(2)} via ${cheapestRate.service}.`
+      : `Add shipment details to generate a local USPS-style estimate for a ${weightLabel} package ${laneText}.`;
+
+    const recommendedLine = recommendedRate
+      ? `Recommended service for marketplace use: ${recommendedRate.service} at about $${Number(recommendedRate.rate).toFixed(2)}. Suggested buyer-paid shipping: ${buyerCharge !== null ? `$${buyerCharge.toFixed(2)}` : "not available"}.`
+      : "";
 
     return {
-      shipping: `Shipping template:\nThis order ships ${shippingSpeed} with ${handlingTime}. It will be ${packagingStyle}, sent with tracking, and prepared using USPS service options when available.\n\n${uspsRateLine}\n\nPaste-ready note:\nShips ${shippingSpeed}. Packed ${packagingStyle}. Tracking updates once USPS accepts the shipment.`,
+      shipping: `Shipping estimate and template:\nPackage profile: ${packageProfile}\nShipment weight: ${weightLabel}\nThis order ships ${shippingSpeed} with ${handlingTime}. It will be ${packagingStyle}, sent with tracking, and prepared using USPS service options.\n\n${uspsRateLine}\n${recommendedLine}\n\nPaste-ready note:\nShips ${shippingSpeed}. Packed ${packagingStyle}. Estimated USPS shipping is built into the listing plan, and tracking updates once USPS accepts the shipment.`,
       condition: `Condition disclosure template:\n${disclosure}\n\nPaste-ready note:\nPre-owned item. Please review all photos closely. Add specific flaw details here: [insert flaw details].`,
       bundle: `Bundle / offer template:\n${bundle}\n\nPaste-ready note:\nBundle requests and reasonable offers are welcome. Combined shipping can be reviewed before purchase when it reduces total shipping cost.`,
       thanks: `Thank-you / packaging template:\n${thankYou}\n\nPaste-ready note:\nThank you for your order. Your package is being ${packagingStyle} and will ship ${shippingSpeed}. Tracking will update once USPS accepts the shipment.`,
@@ -1477,7 +1586,7 @@ function initTemplatesPage() {
 
   buildTemplateWorkspaceBtn.addEventListener("click", () => {
     renderOutputs();
-    statusEl.textContent = "Reusable copy refreshed.";
+    statusEl.textContent = "Templates updated.";
   });
 
   resetTemplateWorkspaceBtn.addEventListener("click", () => {
@@ -1485,7 +1594,7 @@ function initTemplatesPage() {
     latestRates = [];
     renderRateSummary(latestRates);
     renderOutputs();
-    statusEl.textContent = "Template inputs reset.";
+    statusEl.textContent = "Inputs reset.";
   });
 
   [
@@ -1499,66 +1608,39 @@ function initTemplatesPage() {
     fields.destinationZip,
     fields.pounds,
     fields.ounces,
+    fields.packageProfile,
   ].forEach((field) => {
     if (!field) return;
     field.addEventListener("input", renderOutputs);
     field.addEventListener("change", renderOutputs);
   });
 
-  if (fields.uspsUserId) {
-    fields.uspsUserId.value = getUspsUserId();
-  }
-
-  if (saveUspsUserIdBtn) {
-    saveUspsUserIdBtn.addEventListener("click", () => {
-      const userId = fields.uspsUserId?.value.trim() || "";
-      if (!userId) {
-        shippingStatusEl.textContent = "Enter a USPS User ID before saving.";
-        return;
-      }
-      saveUspsUserId(userId);
-      shippingStatusEl.textContent = "USPS User ID saved locally in this browser.";
-    });
-  }
-
   if (buildShippingTemplateBtn) {
-    buildShippingTemplateBtn.addEventListener("click", async () => {
+    buildShippingTemplateBtn.addEventListener("click", () => {
       const uspsState = getUspsState();
       const { pounds, ounces } = normalizeShipmentWeight(uspsState.pounds, uspsState.ounces);
 
-      if (!uspsState.userId) {
-        shippingStatusEl.textContent = "Enter and save a USPS User ID before fetching rates.";
-        renderOutputs();
-        return;
-      }
       if (uspsState.originZip.length !== 5 || uspsState.destinationZip.length !== 5) {
         shippingStatusEl.textContent = "Enter valid 5-digit origin and destination ZIP codes.";
         renderOutputs();
         return;
       }
-
-      shippingStatusEl.textContent = "Fetching USPS rates and rebuilding the shipping template...";
-      saveUspsUserId(uspsState.userId);
-
-      try {
-        latestRates = await fetchUspsRates({
-          userId: uspsState.userId,
-          originZip: uspsState.originZip,
-          destinationZip: uspsState.destinationZip,
-          pounds,
-          ounces,
-        });
-        renderRateSummary(latestRates);
+      if ((pounds * 16) + ounces <= 0) {
+        shippingStatusEl.textContent = "Enter a shipment weight greater than 0 oz.";
         renderOutputs();
-        shippingStatusEl.textContent = latestRates.length
-          ? "USPS rates loaded and shipping template updated."
-          : "No USPS services returned for that shipment. Shipping template updated without live rates.";
-      } catch (error) {
-        latestRates = [];
-        renderRateSummary(latestRates);
-        renderOutputs();
-        shippingStatusEl.textContent = "USPS lookup failed. Confirm your USPS User ID, ZIP codes, shipment weight, and browser network access.";
+        return;
       }
+
+      latestRates = estimateUspsRates({
+        originZip: uspsState.originZip,
+        destinationZip: uspsState.destinationZip,
+        pounds,
+        ounces,
+        packageProfile: uspsState.packageProfile,
+      });
+      renderRateSummary(latestRates);
+      renderOutputs();
+      shippingStatusEl.textContent = "Shipping estimate updated.";
     });
   }
 
@@ -2049,7 +2131,7 @@ function initDashboardPage() {
       const selectedIds = new Set(getSelectedListingIds());
       const selected = getVisibleListings().filter((listing) => selectedIds.has(listing.id));
       if (!selected.length) {
-        dashboardStatus.textContent = "Select at least one visible listing to export.";
+        dashboardStatus.textContent = "Select at least 1 visible listing to export.";
         return;
       }
       exportCSV(selected);
@@ -2063,7 +2145,7 @@ function initDashboardPage() {
       const selectedIds = new Set(getSelectedListingIds());
       const selected = getVisibleListings().filter((listing) => selectedIds.has(listing.id));
       if (!selected.length) {
-        dashboardStatus.textContent = "Select at least one visible listing to export.";
+        dashboardStatus.textContent = "Select at least 1 visible listing to export.";
         return;
       }
       exportJSON(selected);
