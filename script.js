@@ -1157,7 +1157,7 @@ function initNewListingPage() {
   function fillTemplateEditor(template) {
     if (!nodes.templateName) return;
     nodes.templateName.value = template?.name || "";
-    nodes.templateTitlePattern.value = template?.titlePattern || "";
+    if (nodes.templateTitlePattern) nodes.templateTitlePattern.value = template?.titlePattern || "";
     nodes.templateDescription.value = template?.description || "";
     nodes.templateKeywords.value = template?.keywords || "";
     nodes.templateShippingNotes.value = template?.shippingNotes || "";
@@ -1554,7 +1554,7 @@ function initNewListingPage() {
       const template = buildTemplateRecord({
         id: selectedId || uid(),
         name,
-        titlePattern: nodes.templateTitlePattern.value.trim(),
+        titlePattern: nodes.templateTitlePattern?.value.trim() || "",
         description: nodes.templateDescription.value.trim(),
         keywords: nodes.templateKeywords.value.trim(),
         shippingNotes: nodes.templateShippingNotes.value.trim(),
@@ -1754,7 +1754,14 @@ function initTemplatesPage() {
     libraryList.innerHTML = "";
 
     if (!templates.length) {
-      libraryList.innerHTML = `<div class="saved-template-empty">No templates saved yet. Create 1 here, then use Apply Template on <a href="new-listing.html">Create Listing</a> when you start a new item.</div>`;
+      libraryList.innerHTML = `
+        <div class="saved-template-empty-state">
+          <div class="saved-template-empty">
+            <p class="mb-0">No templates saved yet. Create one here, then apply it when you start a new item.</p>
+          </div>
+          <a class="btn btn-dark" href="new-listing.html">Create Listing</a>
+        </div>
+      `;
       return;
     }
 
@@ -1804,7 +1811,7 @@ function initTemplatesPage() {
     });
   }
 
-  Object.values(fields).forEach((field) => {
+  Object.values(fields).filter(Boolean).forEach((field) => {
     field.addEventListener("input", renderPreview);
     field.addEventListener("change", renderPreview);
   });
@@ -1820,10 +1827,11 @@ function initTemplatesPage() {
       editorStatus.textContent = "Template name is required.";
       return;
     }
+    const isUpdate = Boolean(selectedTemplateId && getTemplateById(selectedTemplateId));
     upsertTemplate(template);
     selectedTemplateId = template.id;
     renderLibrary();
-    editorStatus.textContent = "Template saved.";
+    editorStatus.textContent = isUpdate ? "Template updated." : "New template saved.";
   });
 
   duplicateBtn?.addEventListener("click", () => {
@@ -1901,12 +1909,7 @@ function initTemplatesPage() {
     });
   });
 
-  const initialTemplates = getTemplates();
-  if (initialTemplates.length) {
-    fillEditor(initialTemplates[0]);
-  } else {
-    clearEditor();
-  }
+  clearEditor();
   renderSkuSettings();
   renderLibrary();
   renderPreview();
