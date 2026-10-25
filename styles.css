@@ -2289,6 +2289,26 @@ body.utility-page #calcStatus {
   color: var(--ll-muted);
 }
 
+.photo-requirement {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid rgba(74, 21, 56, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.photo-requirement .form-check-input {
+  flex-shrink: 0;
+}
+
+.photo-requirement:has(input:checked) {
+  background: #edf5ef;
+}
+
 .preview-photo-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

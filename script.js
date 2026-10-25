@@ -49,12 +49,60 @@ const SEO_STOPWORDS = new Set([
 ]);
 
 const CATEGORY_SEARCH_TERMS = {
-  tops: ["top", "shirt", "blouse", "tee"],
-  bottoms: ["pants", "jeans", "trousers", "bottoms"],
-  dresses: ["dress", "midi dress", "maxi dress", "mini dress"],
-  shoes: ["shoes", "sneakers", "boots", "heels"],
-  bags: ["bag", "handbag", "purse", "tote"],
-  outerwear: ["jacket", "coat", "blazer", "outerwear"],
+  "tops": [
+    "tops shirts"
+  ],
+  "sweaters": [
+    "sweaters knitwear"
+  ],
+  "bottoms": [
+    "pants leggings"
+  ],
+  "jeans": [
+    "jeans"
+  ],
+  "shorts": [
+    "shorts"
+  ],
+  "skirts": [
+    "skirts"
+  ],
+  "dresses": [
+    "dresses"
+  ],
+  "jumpsuits": [
+    "jumpsuits rompers"
+  ],
+  "outerwear": [
+    "coats jackets"
+  ],
+  "suits": [
+    "suits matching sets"
+  ],
+  "activewear": [
+    "activewear"
+  ],
+  "swimwear": [
+    "swimwear"
+  ],
+  "intimates": [
+    "intimates underwear"
+  ],
+  "sleepwear": [
+    "sleepwear loungewear"
+  ],
+  "shoes": [
+    "shoes boots"
+  ],
+  "bags": [
+    "bags wallets"
+  ],
+  "accessories": [
+    "accessories"
+  ],
+  "jewelry": [
+    "jewelry watches"
+  ]
 };
 
 const CONDITION_SEARCH_TERMS = {
@@ -598,6 +646,8 @@ function buildResearchLinks(query) {
   return {
     ebaySold: `https://www.ebay.com/sch/i.html?_nkw=${encoded}&LH_Sold=1&LH_Complete=1`,
     poshmark: `https://poshmark.com/search?query=${encoded}`,
+    googlePoshmark: `https://www.google.com/search?q=${encodeURIComponent(`site:poshmark.com/listing/ ${query} "sold"`)}`,
+    googleEbay: `https://www.google.com/search?q=${encodeURIComponent(`site:ebay.com/itm/ ${query} "sold"`)}`,
   };
 }
 
@@ -733,13 +783,26 @@ function getSuggestedBuyerCharge(rate) {
 
 function prettyCategory(value) {
   const map = {
-    tops: "Tops",
-    bottoms: "Bottoms",
-    dresses: "Dresses",
-    shoes: "Shoes",
-    bags: "Bags",
-    outerwear: "Outerwear",
-  };
+  "shoes": "Shoes",
+  "bags": "Handbags & Bags",
+  "tops": "Tops & Sweaters",
+  "bottoms": "Pants & Jeans",
+  "shorts": "Shorts",
+  "skirts": "Skirts",
+  "dresses": "Dresses & Jumpsuits",
+  "outerwear": "Jackets, Coats & Blazers",
+  "activewear": "Activewear & Swimwear",
+  "jewelry": "Jewelry & Watches",
+  "accessories": "Accessories",
+  "other": "Other / Miscellaneous",
+  "sweaters": "Tops & Sweaters",
+  "jeans": "Pants & Jeans",
+  "jumpsuits": "Dresses & Jumpsuits",
+  "swimwear": "Activewear & Swimwear",
+  "suits": "Suits & Matching Sets",
+  "intimates": "Intimates & Underwear",
+  "sleepwear": "Sleepwear & Loungewear"
+};
   return map[value] || value || "No category";
 }
 
@@ -808,9 +871,31 @@ function clampTitle(text, limit) {
   return clean.slice(0, Math.max(0, limit - 1)).trimEnd();
 }
 
+function additionalDetailLines(listing) {
+  return [["Product type", listing.productType || listing.itemType], ["Style / model", listing.styleModel],
+    ["Key features", listing.keyFeatures], ["Material", listing.material],
+    ["Gender / department", listing.gender], ["Tagged size", listing.size]]
+    .filter(([, value]) => String(value || "").trim())
+    .map(([label, value]) => `${label}: ${String(value).trim()}`);
+}
+
+function buildListingTitle(listing) {
+  const hasDetails = additionalDetailLines(listing).length > 0;
+  return (hasDetails
+    ? [listing.brand, listing.productType || listing.itemType, listing.styleModel, listing.keyFeatures,
+       listing.itemName, listing.gender, listing.size ? `Size ${listing.size}` : ""]
+    : [listing.brand, listing.itemName]).filter(Boolean).join(" ").trim() || "Untitled item";
+}
+
+function buildMarketplaceDescription(listing) {
+  const notes = String(listing.notes || "").trim();
+  const extra = additionalDetailLines(listing).filter((line) => !notes.toLowerCase().includes(line.toLowerCase()));
+  return [notes, extra.join("\n")].filter(Boolean).join("\n\n");
+}
+
 function getMarketplaceMap(listing) {
-  const titleBase = [listing.brand, listing.itemName].filter(Boolean).join(" ").trim() || listing.itemName || "Untitled item";
-  const description = String(listing.notes || "").trim();
+  const titleBase = buildListingTitle(listing);
+  const description = buildMarketplaceDescription(listing);
   const keywords = String(listing.keywords || "").trim();
   const hashtags = String(listing.hashtags || "").trim();
   const category = prettyCategory(listing.category);
@@ -836,7 +921,7 @@ function getMarketplaceMap(listing) {
       category,
       condition,
       brand: listing.brand || "",
-      size: "Add size in platform",
+      size: listing.size || "Add size in platform",
       listingPrice: price,
       originalPrice: "Add original retail price if known",
       description,
@@ -859,8 +944,9 @@ function getMarketplaceMap(listing) {
 function buildExportSummary(listing) {
   const lines = [];
 
-  if (listing.itemName) lines.push(`Title: ${listing.itemName}`);
+  if (listing.itemName || additionalDetailLines(listing).length) lines.push(`Title: ${buildListingTitle(listing)}`);
   if (listing.brand) lines.push(`Brand: ${listing.brand}`);
+  lines.push(...additionalDetailLines(listing));
   lines.push(`Category: ${prettyCategory(listing.category)}`);
   lines.push(`Condition: ${prettyCondition(listing.condition)}`);
   lines.push(`Status: ${prettyStatus(listing.status)}`);
@@ -878,7 +964,7 @@ function buildExportSummary(listing) {
     lines.push(`Keywords: ${listing.keywords}`);
   }
   if (listing.hashtags) {
-    lines.push(`Hashtags: ${listing.hashtags}`);
+    lines.push(`Tags: ${listing.hashtags}`);
   }
 
   lines.push("");
@@ -900,6 +986,7 @@ function exportCSV(listings) {
 
   const headers = [
     "itemName", "brand", "category", "condition", "status", "price", "notes", "keywords", "hashtags", "createdAt",
+    "itemType", "productType", "styleModel", "keyFeatures", "material", "gender", "size",
     "ebay_title", "ebay_category", "ebay_condition", "ebay_price", "ebay_description", "ebay_keywords", "ebay_hashtags",
     "poshmark_title", "poshmark_category", "poshmark_condition", "poshmark_price", "poshmark_description", "poshmark_keywords", "poshmark_hashtags",
     "flyp_title", "flyp_category", "flyp_condition", "flyp_price", "flyp_description", "flyp_keywords", "flyp_hashtags",
@@ -956,11 +1043,339 @@ function exportJSON(listings) {
   URL.revokeObjectURL(url);
 }
 
+const PHOTOGRAPHY_CATEGORIES = {
+  "shoes": {
+    "label": "Shoes",
+    "count": "8\u201312",
+    "shots": [
+      "Pair together (main/cover photo)",
+      "Outer side views (both shoes)",
+      "Inner side views",
+      "Front/toe view",
+      "Back/heel view",
+      "Top view",
+      "Bottom/sole and tread",
+      "Brand, size, and style labels",
+      "Close-ups of materials and details",
+      "Any flaws or wear",
+      "Original box (if included)"
+    ]
+  },
+  "bags": {
+    "label": "Handbags & Bags",
+    "count": "8\u201312",
+    "shots": [
+      "Front (main/cover photo)",
+      "Back",
+      "Both sides",
+      "Top and bottom",
+      "Interior and compartments",
+      "Handles and straps",
+      "Brand logo and authenticity markings",
+      "Hardware, zippers, and closures",
+      "Corners and edges",
+      "Material and texture",
+      "Any flaws or wear",
+      "Dust bag or accessories (if included)"
+    ]
+  },
+  "tops": {
+    "label": "Tops & Sweaters",
+    "count": "6\u201310",
+    "shots": [
+      "Front (main/cover photo)",
+      "Back",
+      "Side or sleeve view",
+      "Neckline and collar",
+      "Cuffs and hem",
+      "Fabric texture and details",
+      "Brand and size tags",
+      "Material/care label",
+      "Any flaws or wear",
+      "Measurements (if applicable)"
+    ]
+  },
+  "bottoms": {
+    "label": "Pants & Jeans",
+    "count": "6\u201310",
+    "shots": [
+      "Front, full length (main/cover photo)",
+      "Back, full length",
+      "Waistband and closure",
+      "Front and back pockets",
+      "Leg openings and hems",
+      "Fabric texture",
+      "Brand and size tags",
+      "Material/care label",
+      "Any flaws or wear",
+      "Measurements (waist, rise, inseam, etc.)"
+    ]
+  },
+  "shorts": {
+    "label": "Shorts",
+    "count": "6\u20138",
+    "shots": [
+      "Front (main/cover photo)",
+      "Back",
+      "Waistband and closure",
+      "Pockets",
+      "Leg openings",
+      "Fabric details",
+      "Brand and size tags",
+      "Any flaws or wear",
+      "Measurements (waist, rise, inseam)"
+    ]
+  },
+  "skirts": {
+    "label": "Skirts",
+    "count": "6\u20138",
+    "shots": [
+      "Front (main/cover photo)",
+      "Back",
+      "Side view",
+      "Waistband and closure",
+      "Hem and lining",
+      "Fabric texture and details",
+      "Brand and size tags",
+      "Any flaws or wear",
+      "Measurements (waist, hips, length)"
+    ]
+  },
+  "dresses": {
+    "label": "Dresses & Jumpsuits",
+    "count": "6\u201310",
+    "shots": [
+      "Front, full length (main/cover photo)",
+      "Back, full length",
+      "Side view",
+      "Neckline and straps/sleeves",
+      "Waist and design details",
+      "Zippers, buttons, and closures",
+      "Fabric texture",
+      "Brand and size tags",
+      "Any flaws or wear",
+      "Measurements (bust, waist, hips, length)"
+    ]
+  },
+  "outerwear": {
+    "label": "Jackets, Coats & Blazers",
+    "count": "8\u201312",
+    "shots": [
+      "Front (main/cover photo)",
+      "Back",
+      "Side view",
+      "Front open (if applicable)",
+      "Interior and lining",
+      "Collar, hood, and cuffs",
+      "Buttons, zippers, and pockets",
+      "Brand and size tags",
+      "Material/care label",
+      "Close-ups of features",
+      "Any flaws or wear",
+      "Measurements (chest, length, sleeves)"
+    ]
+  },
+  "activewear": {
+    "label": "Activewear & Swimwear",
+    "count": "6\u201310",
+    "shots": [
+      "Front (main/cover photo)",
+      "Back",
+      "Side view",
+      "Waistband, straps, or closures",
+      "Lining and padding (if applicable)",
+      "Stretch/material details",
+      "Brand and size tags",
+      "Hygiene liner (if applicable)",
+      "Any flaws or wear",
+      "Measurements (if applicable)"
+    ]
+  },
+  "jewelry": {
+    "label": "Jewelry & Watches",
+    "count": "6\u201310",
+    "shots": [
+      "Front/main view (cover photo)",
+      "Back",
+      "Side/profile view",
+      "Clasps, fasteners, or closures",
+      "Brand markings and hallmarks",
+      "Material and decorative details",
+      "Watch face and caseback (if applicable)",
+      "Size/length reference",
+      "Any flaws or wear",
+      "Original box or accessories (if included)"
+    ]
+  },
+  "accessories": {
+    "label": "Accessories",
+    "count": "6\u201310",
+    "shots": [
+      "Front/main view (cover photo)",
+      "Back",
+      "Side/profile view (if applicable)",
+      "Interior (if applicable)",
+      "Closures and hardware",
+      "Brand logo and labels",
+      "Material and texture",
+      "Size/measurement reference",
+      "Any flaws or wear",
+      "Packaging or accessories (if included)"
+    ]
+  },
+  "other": {
+    "label": "Other / Miscellaneous",
+    "count": "6\u201310",
+    "shots": [
+      "Front/main view (cover photo)",
+      "Back",
+      "Left and right sides",
+      "Top and bottom (if applicable)",
+      "Important features and details",
+      "Brand/manufacturer label",
+      "Model number, size, or specifications",
+      "Material and texture",
+      "Any flaws, wear, or damage",
+      "Packaging and included accessories"
+    ]
+  }
+};
+const LEGACY_PHOTO_CATEGORIES = {
+  sweaters: "tops", jeans: "bottoms", jumpsuits: "dresses", swimwear: "activewear",
+  suits: "other", intimates: "other", sleepwear: "other",
+};
+
+function updatePhotoGuidance(category, preparation) {
+  const guide = PHOTOGRAPHY_CATEGORIES[category];
+  const summary = $("#photoGuidanceSummary");
+  const summaryText = guide ? `${guide.label}: ${guide.count} photos recommended.` : "Choose a photography category to build your shot list.";
+  if (summary.textContent !== summaryText) summary.textContent = summaryText;
+  const container = $("#photoRequirementList");
+  const custom = preparation.additionalShots || [];
+  const shots = guide ? [...guide.shots, ...custom] : [];
+  const renderKey = JSON.stringify([category, custom]);
+  const updateProgress = () => {
+    const done = shots.filter((shot, index) => preparation.completed[`${category}:${index}:${shot}`]).length;
+    $("#photoCompletion").textContent = guide ? `${done} of ${shots.length} requirements complete` : "No category selected";
+  };
+  if (container.dataset.renderKey !== renderKey) {
+    container.replaceChildren();
+    shots.forEach((shot, index) => {
+      const key = `${category}:${index}:${shot}`;
+      const label = document.createElement("label");
+      label.className = "photo-requirement";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "form-check-input";
+      checkbox.checked = Boolean(preparation.completed[key]);
+      checkbox.addEventListener("change", () => {
+        preparation.completed[key] = checkbox.checked;
+        updateProgress();
+      });
+      const text = document.createElement("span");
+      text.textContent = index >= guide.shots.length ? `Additional: ${shot}` : shot;
+      label.append(checkbox, text);
+      container.append(label);
+    });
+    container.dataset.renderKey = renderKey;
+  }
+  updateProgress();
+  $("#customItemTypeGroup").hidden = category !== "other";
+  $("#addPhotoShotBtn").disabled = !guide;
+}
+
+// Suggestions use seller-confirmed attributes, not inferred trends or search volumes.
+function buildSearchSuggestions(state) {
+  const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
+  const brand = clean(state.brand);
+  const categoryProducts = {
+    shoes: "shoes", bags: "bag", tops: "top", bottoms: "pants", shorts: "shorts",
+    skirts: "skirt", dresses: "dress", outerwear: "outerwear", activewear: "activewear",
+    jewelry: "jewelry", accessories: "accessory",
+  };
+  const product = clean(state.productType || state.itemType || categoryProducts[state.category]);
+  const model = clean(state.styleModel);
+  const color = clean(state.itemName);
+  const material = clean(state.material);
+  const gender = clean(state.gender);
+  const size = clean(state.size);
+  const features = clean(state.keyFeatures).split(/[,;]+/).map(clean).filter(Boolean);
+  const keywords = [];
+  const seen = new Set();
+  const add = (...parts) => {
+    const phrase = parts.filter(Boolean).join(" ");
+    const key = phrase.toLowerCase();
+    if (!phrase || seen.has(key)) return;
+    seen.add(key);
+    keywords.push(phrase);
+  };
+  (state.researchTerms || []).forEach((term) => add(term));
+  add(brand, product, model);
+  if (product) {
+    if (gender || size) add(gender, product, size ? `size ${size}` : "");
+    if (color) add(color, product);
+    if (material) add(material, product);
+    features.forEach((feature) => add(feature, product));
+    add(brand, product);
+    if (model) add(model, product);
+    if (color) add(brand, color, product);
+    if (material) add(brand, material, product);
+    if (gender) add(brand, gender, product);
+    if (size) add(brand, product, `size ${size}`);
+    if (color && material) add(color, material, product);
+    if (color && gender) add(gender, color, product);
+    features.forEach((feature) => {
+      add(brand, feature, product);
+      if (color) add(color, feature, product);
+      if (material) add(material, feature, product);
+      if (gender) add(gender, feature, product);
+    });
+    const attributes = [color, material, gender, model, ...features].filter(Boolean);
+    attributes.forEach((attribute, index) => {
+      if (size) add(attribute, product, `size ${size}`);
+      attributes.slice(index + 1).forEach((other) => add(attribute, other, product));
+    });
+    if (model && size) add(brand, model, product, `size ${size}`);
+    add(product);
+  }
+  [brand, model, material, ...features].forEach((value) => add(value));
+  const tags = [];
+  [brand, product, model, color, material, gender, ...(state.researchTerms || []), ...features,
+    size ? `size ${size}` : "",
+    ...keywords,
+  ].forEach((value) => {
+    const tag = clean(value).replace(/^#+/, "");
+    if (tag && !tags.some((existing) => existing.toLowerCase() === tag.toLowerCase())) tags.push(tag);
+  });
+  return { keywords: keywords.slice(0, 60), hashtags: tags.slice(0, 36).join(", ") };
+}
+
 function initNewListingPage() {
   if (!pageHas("#listingForm")) return;
 
   const form = $("#listingForm");
+  let photoPreparation = { completed: {}, additionalShots: [] };
+  let marketResearch = null;
+  let selectedResearchTerms = [];
+  let researchRequestId = 0;
+  let displayedResearchQuery = "";
+  $("#addPhotoShotBtn").addEventListener("click", () => {
+    const input = $("#additionalPhotoShot");
+    const shot = input.value.trim();
+    if (!shot || !fields.category.value) return;
+    photoPreparation.additionalShots.push(shot);
+    input.value = "";
+    updatePreview();
+  });
   const fields = {
+    itemType: $("#customItemType"),
+    productType: $("#productType"),
+    styleModel: $("#styleModel"),
+    keyFeatures: $("#keyFeatures"),
+    material: $("#material"),
+    gender: $("#gender"),
+    size: $("#size"),
+
     itemName: $("#itemName"),
     brand: $("#brand"),
     category: $("#category"),
@@ -985,11 +1400,6 @@ function initNewListingPage() {
     exportDescription: $("#exportDescription"),
     exportSellerNotes: $("#exportSellerNotes"),
     exportHashtags: $("#exportHashtags"),
-    listingPhotoPlaceholders: [
-      $("#listingPhotoPlaceholder1"),
-      $("#listingPhotoPlaceholder2"),
-      $("#listingPhotoPlaceholder3"),
-    ].filter(Boolean),
     listingCardTitle: $("#listingCardTitle"),
     listingSnapshotBrand: $("#listingSnapshotBrand"),
     listingSnapshotCategory: $("#listingSnapshotCategory"),
@@ -1015,8 +1425,6 @@ function initNewListingPage() {
     formulaStatus: $("#formulaStatus"),
     formulaSummary: $("#formulaSummary"),
     generateDescriptionBtn: $("#generateDescriptionBtn"),
-    generateKeywordsBtn: $("#generateKeywordsBtn"),
-    generateHashtagsBtn: $("#generateHashtagsBtn"),
     templateSelect: $("#templateSelect"),
     templateName: $("#templateName"),
     templateTitlePattern: $("#templateTitlePattern"),
@@ -1048,7 +1456,16 @@ function initNewListingPage() {
 
   function getFormState() {
     const price = Number(fields.price.value);
-    return {
+    const state = {
+      itemType: fields.itemType.value.trim(),
+      productType: fields.productType.value.trim(),
+      styleModel: fields.styleModel.value.trim(),
+      keyFeatures: fields.keyFeatures.value.trim(),
+      material: fields.material.value.trim(),
+      gender: fields.gender.value.trim(),
+      size: fields.size.value.trim(),
+
+      photoPreparation,
       itemName: fields.itemName.value.trim(),
       brand: fields.brand.value.trim(),
       category: fields.category.value,
@@ -1059,12 +1476,36 @@ function initNewListingPage() {
       hashtags: fields.hashtags?.value.trim() || "",
       status: "draft",
     };
+    const researchMatches = marketResearch && marketResearch.query === buildCompQuery(state);
+    state.marketResearch = researchMatches ? marketResearch : null;
+    state.researchTerms = researchMatches ? selectedResearchTerms : [];
+    const suggestions = buildSearchSuggestions(state);
+    state.keywords = suggestions.keywords.join(", ");
+    state.hashtags = suggestions.hashtags;
+    return state;
   }
 
   function setFormState(state) {
+    marketResearch = state.marketResearch || null;
+    selectedResearchTerms = Array.isArray(state.researchTerms) ? [...state.researchTerms] : [];
+    displayedResearchQuery = "";
+    researchRequestId++;
     fields.itemName.value = state.itemName || "";
     fields.brand.value = state.brand || "";
-    fields.category.value = state.category || "";
+    fields.category.value = LEGACY_PHOTO_CATEGORIES[state.category] || state.category || "";
+    fields.itemType.value = state.itemType || "";
+    fields.productType.value = state.productType || "";
+    fields.styleModel.value = state.styleModel || "";
+    fields.keyFeatures.value = state.keyFeatures || "";
+    fields.material.value = state.material || "";
+    fields.gender.value = state.gender || "";
+    fields.size.value = state.size || "";
+
+    photoPreparation = {
+      completed: { ...(state.photoPreparation?.completed || {}) },
+      additionalShots: [...(state.photoPreparation?.additionalShots || [])],
+    };
+    delete $("#photoRequirementList").dataset.renderKey;
     fields.condition.value = state.condition || "";
     fields.price.value = Number.isFinite(state.price) ? String(state.price) : "";
     fields.notes.value = state.notes || "";
@@ -1098,60 +1539,33 @@ function initNewListingPage() {
   }
 
   function generateKeywordsFromState(state) {
-    const keywords = [];
-    const categoryLabel = state.category ? prettyCategory(state.category) : "";
-    const itemWords = tokenizeSearchWords(state.itemName);
-
-    pushUnique(keywords, state.brand);
-    pushUnique(keywords, state.itemName);
-    pushUnique(keywords, [state.brand, state.itemName].filter(Boolean).join(" "));
-    pushUnique(keywords, categoryLabel);
-    pushUnique(keywords, [state.brand, categoryLabel].filter(Boolean).join(" "));
-
-    (CATEGORY_SEARCH_TERMS[state.category] || []).forEach((term) => pushUnique(keywords, term));
-    (CONDITION_SEARCH_TERMS[state.condition] || []).forEach((term) => pushUnique(keywords, term));
-
-    itemWords.forEach((word) => pushUnique(keywords, word));
-
-    if (state.brand && itemWords.length) {
-      pushUnique(keywords, `${state.brand} ${itemWords[0]}`);
-    }
-
-    return keywords.slice(0, 12);
+    return buildSearchSuggestions(state).keywords;
   }
 
   function buildHashtags(state) {
-    const hashtags = [];
-    const categoryLabel = state.category ? prettyCategory(state.category) : "";
-    const generatedKeywords = generateKeywordsFromState(state);
-    const itemWords = tokenizeSearchWords(state.itemName);
-
-    [
-      state.brand,
-      categoryLabel,
-      state.itemName,
-      [state.brand, categoryLabel].filter(Boolean).join(" "),
-      (CONDITION_SEARCH_TERMS[state.condition] || [])[0] || "",
-      itemWords[0] || "",
-      itemWords.slice(0, 2).join(" "),
-      ...generatedKeywords.slice(0, 4),
-    ].forEach((value) => {
-      const token = toHashtagToken(value);
-      if (!token) return;
-      if (!hashtags.includes(`#${token}`)) hashtags.push(`#${token}`);
-    });
-
-    return hashtags.slice(0, 8).join(" ");
+    return buildSearchSuggestions(state).hashtags;
   }
 
   function buildGeneratedDescription(state) {
-    const lines = [];
-    const item = state.itemName || "Item";
-    lines.push(`${item} by ${state.brand || "unbranded"} in ${prettyCondition(state.condition)} condition.`);
-    if (state.category) lines.push(`Category: ${prettyCategory(state.category)}.`);
-    lines.push("Includes key details in photos and notes.");
-    lines.push("Ships quickly with tracking.");
-    return lines.join(" ");
+    const product = state.productType || state.itemType || (state.category ? prettyCategory(state.category) : "Item");
+    const headline = [state.brand, product, state.styleModel, state.itemName, state.gender,
+      state.size ? `Size ${state.size}` : ""].filter(Boolean).join(" ");
+    const lines = [headline];
+    const attributes = [
+      ["Brand", state.brand], ["Product", product], ["Style / model", state.styleModel],
+      ["Color", state.itemName], ["Department", state.gender], ["Tagged size", state.size],
+      ["Material", state.material], ["Features", state.keyFeatures],
+      ["Condition", state.condition ? prettyCondition(state.condition) : ""],
+    ].filter(([, value]) => value);
+    lines.push("", ...attributes.map(([label, value]) => `${label}: ${value}`));
+    const existing = String(state.notes || "").trim();
+    // Keep seller disclosures and measurements; repeated generation replaces only our own block.
+    const marker = "\n\nSeller notes:\n";
+    const sellerNotes = existing.startsWith(headline + "\n")
+      ? (existing.includes(marker) ? existing.split(marker).slice(1).join(marker) : "")
+      : existing;
+    if (sellerNotes) lines.push("", "Seller notes:", sellerNotes);
+    return lines.join("\n");
   }
 
   function fillTemplateEditor(template) {
@@ -1234,7 +1648,22 @@ function initNewListingPage() {
 
   function updatePreview() {
     const state = getFormState();
+    document.querySelectorAll("[data-condition]").forEach((button) => {
+      const selected = button.dataset.condition === state.condition;
+      button.setAttribute("aria-pressed", String(selected));
+      button.classList.toggle("text-bg-light", !selected);
+      button.classList.toggle("text-bg-dark", selected);
+    });
     updateCompleteness(state);
+    const currentResearchQuery = buildCompQuery(state);
+    if (displayedResearchQuery && displayedResearchQuery !== currentResearchQuery) {
+      nodes.compResults.replaceChildren();
+      $("#marketTermSuggestions").replaceChildren();
+      nodes.compStatus.textContent = "Item details changed. Run market research for this item.";
+      nodes.compSummary.textContent = "";
+      displayedResearchQuery = "";
+    }
+    if (state.marketResearch && !displayedResearchQuery) renderMarketResearch(state.marketResearch);
 
     const pricingGuide = getPricingGuide(state);
     const suggestedRange = pricingGuide.range;
@@ -1252,7 +1681,7 @@ function initNewListingPage() {
     const priceCheck = isPriceValid(state.price, suggestedRange);
     nodes.priceCheck.textContent = priceCheck.msg;
 
-    const title = state.itemName || "Untitled item";
+    const title = buildListingTitle(state);
     const condition = prettyCondition(state.condition);
     const price = Number.isFinite(state.price) && state.price > 0 ? `$${state.price.toFixed(2)}` : "$0.00";
     const rangeText = suggestedRange
@@ -1262,7 +1691,7 @@ function initNewListingPage() {
     const conditionText = state.condition
       ? `${condition} condition${state.brand ? ` for this ${state.brand} item.` : "."}`
       : "No condition selected yet.";
-    const descriptionText = state.notes || "Add notes for flaws, measurements, materials, and shipping details.";
+    const descriptionText = buildMarketplaceDescription(state) || "Add notes for flaws, measurements, materials, and shipping details.";
     const sellerNotesText = [
       state.condition ? `Condition is listed as ${condition.toLowerCase()}.` : "Condition details can be added once reviewed.",
       state.notes
@@ -1270,7 +1699,8 @@ function initNewListingPage() {
         : "Please review the photos for overall item details and condition.",
       "Message with any questions before purchase.",
     ].join("\n");
-    const hashtagsText = state.hashtags || "Generate hashtags from the form details.";
+    fields.keywords.value = generateKeywordsFromState(state).join(", ");
+    state.keywords = fields.keywords.value;
 
     if (nodes.listingCardTitle) nodes.listingCardTitle.textContent = title;
     if (nodes.listingCardPrice) nodes.listingCardPrice.textContent = price;
@@ -1278,9 +1708,7 @@ function initNewListingPage() {
     if (nodes.listingSnapshotPriceCheck) nodes.listingSnapshotPriceCheck.textContent = priceCheckText;
     if (nodes.listingCardCondition) nodes.listingCardCondition.textContent = conditionText;
     if (nodes.listingCardNotes) nodes.listingCardNotes.textContent = descriptionText;
-    nodes.listingPhotoPlaceholders.forEach((placeholderNode, idx) => {
-      placeholderNode.setAttribute("aria-label", `Listing preview ${idx + 1} for ${title}`);
-    });
+    updatePhotoGuidance(state.category, photoPreparation);
 
     if (fields.hashtags) {
       fields.hashtags.value = buildHashtags(state);
@@ -1292,16 +1720,18 @@ function initNewListingPage() {
     if (nodes.exportPrice) nodes.exportPrice.textContent = price;
     if (nodes.exportDescription) nodes.exportDescription.textContent = descriptionText;
     if (nodes.exportSellerNotes) nodes.exportSellerNotes.textContent = sellerNotesText;
-    if (nodes.exportHashtags) nodes.exportHashtags.textContent = hashtagsText;
+    if (nodes.exportHashtags) nodes.exportHashtags.textContent = state.hashtags || "Add item details to populate tags.";
 
   }
 
   function buildCompQuery(state) {
-    return [state.brand, state.itemName, state.category ? prettyCategory(state.category) : ""]
+    return [state.brand, state.productType || state.itemType || (state.category ? prettyCategory(state.category) : ""),
+      state.styleModel, state.itemName, state.keyFeatures, state.material, state.gender, state.size]
       .filter(Boolean)
       .join(" ")
       .replace(/\s+/g, " ")
-      .trim();
+      .trim()
+      .slice(0, 180);
   }
 
   function getPricingGuide(state) {
@@ -1343,17 +1773,84 @@ function initNewListingPage() {
     };
   }
 
-  function renderCompResults(comps) {
-    nodes.compResults.innerHTML = "";
-    comps.slice(0, 6).forEach((comp) => {
-      const a = document.createElement("a");
-      a.className = "btn btn-outline-secondary text-start";
-      a.href = comp.url || "#";
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.innerHTML = `<strong>${escapeHtml(comp.title)}</strong><br><small>$${comp.price.toFixed(2)}</small>`;
-      nodes.compResults.appendChild(a);
+  function renderMarketResearch(research) {
+    displayedResearchQuery = research.query;
+    nodes.compResults.replaceChildren();
+    research.listings.forEach((comp) => {
+      const card = document.createElement("div");
+      card.className = "border rounded p-2 small";
+      const link = document.createElement("a");
+      // The server allows only HTTPS eBay/Poshmark listing URLs.
+      let parsed;
+      try { parsed = new URL(comp.url); } catch { return; }
+      if (parsed.protocol !== "https:" || !/(^|\.)(ebay\.com|poshmark\.com)$/.test(parsed.hostname)) return;
+      link.href = parsed.href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = `${comp.marketplace}: ${comp.title}`;
+      const snippet = document.createElement("p");
+      snippet.className = "mb-2";
+      snippet.textContent = comp.snippet;
+      const priceLabel = document.createElement("label");
+      priceLabel.className = "d-block";
+      priceLabel.textContent = "Verified sold price (USD)";
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = "0.01";
+      input.step = "0.01";
+      input.className = "form-control form-control-sm mb-2";
+      input.placeholder = comp.displayedPrice ? `Search shows $${Number(comp.displayedPrice).toFixed(2)} — verify first` : "Check the original listing";
+      priceLabel.append(input);
+      const confirm = document.createElement("label");
+      confirm.className = "d-flex gap-2 align-items-start mb-2";
+      const check = document.createElement("input");
+      check.type = "checkbox";
+      check.className = "form-check-input";
+      confirm.append(check, document.createTextNode("I verified this item sold and this is its sale price."));
+      const use = document.createElement("button");
+      use.type = "button";
+      use.className = "btn btn-outline-secondary btn-sm";
+      use.textContent = "Add to comps";
+      use.addEventListener("click", () => {
+        if (!check.checked || !Number.isFinite(Number(input.value)) || Number(input.value) <= 0) {
+          nodes.compStatus.textContent = "Enter the verified sale price and confirm the item sold first.";
+          return;
+        }
+        const slot = nodes.manualCompInputs.find((field) => !field.value.trim());
+        if (!slot) { nodes.compStatus.textContent = "All five comp slots are filled."; return; }
+        slot.value = input.value;
+        slot.dispatchEvent(new Event("input", { bubbles: true }));
+        use.disabled = true;
+        use.textContent = "Added to comps";
+        nodes.compStatus.textContent = "Verified price added. Apply Comp Median when ready.";
+      });
+      card.append(link, snippet, priceLabel, confirm, use);
+      nodes.compResults.append(card);
     });
+    const termBox = $("#marketTermSuggestions");
+    termBox.replaceChildren();
+    if (research.terms.length) {
+      const caption = document.createElement("p");
+      caption.className = "small mb-2";
+      caption.textContent = "Market wording: select terms that describe your item to add them to Keywords and Tags.";
+      termBox.append(caption);
+      research.terms.forEach(({ term, listingCount }) => {
+        const label = document.createElement("label");
+        label.className = "small d-inline-flex gap-1 me-3 mb-2";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.className = "form-check-input";
+        input.checked = selectedResearchTerms.includes(term);
+        input.addEventListener("change", () => {
+          selectedResearchTerms = selectedResearchTerms.filter((entry) => entry !== term);
+          if (input.checked) selectedResearchTerms.push(term);
+          updatePreview();
+        });
+        label.append(input, document.createTextNode(`${term} (${listingCount} listings)`));
+        termBox.append(label);
+      });
+    }
+    nodes.compSummary.textContent = `${research.listings.length} listing leads. Prices and sold status need verification. ${research.cached ? "Saved search reused." : "Two marketplace searches requested."}`;
   }
 
   function applyFormulaPricing() {
@@ -1376,9 +1873,7 @@ function initNewListingPage() {
         : `Applied estimated price: $${suggested.toFixed(2)}.`;
 
     if (!fields.keywords.value.trim()) {
-      fields.keywords.value = [state.brand, state.itemName, prettyCategory(state.category)]
-        .filter(Boolean)
-        .join(", ");
+      fields.keywords.value = generateKeywordsFromState(state).join(", ");
     }
     updatePreview();
   }
@@ -1406,26 +1901,43 @@ function initNewListingPage() {
   }
 
   if (nodes.runCompSearchBtn) {
-    nodes.runCompSearchBtn.addEventListener("click", () => {
+    nodes.runCompSearchBtn.addEventListener("click", async () => {
       const state = getFormState();
       const query = buildCompQuery(state);
-      nodes.compResults.innerHTML = "";
-      nodes.compSummary.textContent = "";
-      latestCompMedian = null;
-      latestCompSummary = null;
-      latestCompQuery = query;
-      latestCompSource = "none";
-
-      if (!query) {
-        nodes.compStatus.textContent = "Add at least item name or brand before opening market research.";
+      if (!state.brand || !state.category) {
+        nodes.compStatus.textContent = "Add a brand and category before researching.";
         return;
       }
-
-      const links = buildResearchLinks(query);
-      window.open(links.ebaySold, "_blank", "noopener,noreferrer");
-      window.open(links.poshmark, "_blank", "noopener,noreferrer");
-      nodes.compStatus.textContent = "Opened eBay sold results and Poshmark search in new tabs. Enter the real comp prices you find below.";
-      nodes.compSummary.textContent = "Use sold listings first when possible, then compare against current Poshmark pricing before entering comp values.";
+      if (marketResearch?.query === query && Date.now() - Date.parse(marketResearch.searchedAt) < 86400000 && !marketResearch.warnings?.length) {
+        renderMarketResearch(marketResearch);
+        nodes.compStatus.textContent = "Reused this item's saved research without another API request.";
+        return;
+      }
+      const requestId = ++researchRequestId;
+      nodes.runCompSearchBtn.disabled = true;
+      nodes.compStatus.textContent = "Searching Google for eBay and Poshmark listing leads…";
+      try {
+        const response = await fetch("/api/market_research", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }), signal: AbortSignal.timeout(45000),
+        });
+        if (!(response.headers.get("content-type") || "").includes("application/json")) {
+          throw new Error("Live research requires the backend. Run python3 server.py or use the backend-enabled deployment.");
+        }
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Research unavailable.");
+        if (requestId !== researchRequestId || buildCompQuery(getFormState()) !== query) return;
+        if (!Array.isArray(data.listings) || !Array.isArray(data.terms) || data.query !== query) throw new Error("Invalid research response.");
+        marketResearch = data;
+        selectedResearchTerms = [];
+        renderMarketResearch(data);
+        nodes.compStatus.textContent = data.warnings?.join(" ") || "Research ready. Verify prices and select relevant market wording.";
+        updatePreview();
+      } catch (error) {
+        if (requestId === researchRequestId) nodes.compStatus.textContent = error.message || "Research unavailable. Please retry.";
+      } finally {
+        nodes.runCompSearchBtn.disabled = false;
+      }
     });
   }
 
@@ -1504,34 +2016,6 @@ function initNewListingPage() {
       const state = getFormState();
       fields.notes.value = buildGeneratedDescription(state);
       setStatus("Description generated.");
-      updatePreview();
-    });
-  }
-
-  if (nodes.generateKeywordsBtn) {
-    nodes.generateKeywordsBtn.addEventListener("click", () => {
-      const state = getFormState();
-      const words = generateKeywordsFromState(state);
-      if (!words.length) {
-        setError("Add item details first to generate keywords.");
-        return;
-      }
-      fields.keywords.value = words.join(", ");
-      setStatus("Keywords generated.");
-      updatePreview();
-    });
-  }
-
-  if (nodes.generateHashtagsBtn) {
-    nodes.generateHashtagsBtn.addEventListener("click", () => {
-      const state = getFormState();
-      const tags = buildHashtags(state);
-      if (!tags) {
-        setError("Add item details first to generate hashtags.");
-        return;
-      }
-      fields.hashtags.value = tags;
-      setStatus("Hashtags generated.");
       updatePreview();
     });
   }
@@ -1641,6 +2125,13 @@ function initNewListingPage() {
       });
     }
     window.location.href = "dashboard.html";
+  });
+
+  document.querySelectorAll("[data-condition]").forEach((button) => {
+    button.addEventListener("click", () => {
+      fields.condition.value = button.dataset.condition;
+      fields.condition.dispatchEvent(new Event("change", { bubbles: true }));
+    });
   });
 
   Object.values(fields).forEach((field) => {

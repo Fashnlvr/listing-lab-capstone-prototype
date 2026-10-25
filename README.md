@@ -1,5 +1,7 @@
 # Listing Lab
 
+**Live-search option:** Google research for eBay/Poshmark listing leads and keyword suggestions now has an optional server backend. Run `python3 server.py` and enter your SerpApi key at the hidden prompt. See [LIVE_SEARCH.md](LIVE_SEARCH.md) for setup, deployment and data limitations. The static-only workflow described below remains available without live research.
+
 Listing Lab is a responsive web application for resellers that streamlines the work that happens before an item is posted to a marketplace. It gives sellers a browser-based workspace for organizing item details, checking pricing direction, building listing copy, saving reusable templates, and managing locally stored listing records without requiring a backend account or database.
 
 ## Overview
