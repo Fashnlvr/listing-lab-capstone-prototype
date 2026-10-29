@@ -224,6 +224,17 @@ class FrontendTests(unittest.TestCase):
             check(marketplaceExportIssues(listing,'poshmark').length>=2,'visible adjustments');
         """)
 
+    def test_general_research_uses_required_fields_not_optional_details(self):
+        self.evaluate("""
+            const state={itemName:'New Balance sneakers',brand:'New Balance',category:'shoes',
+              productType:'boots',styleModel:'440 V2',material:'suede',color:'Olivine',size:'11',keyFeatures:'rare embroidered logo'};
+            check(buildGeneralResearchQuery(state)==='New Balance sneakers','required fields drive broad query');
+            check(buildGeneralResearchQuery({itemName:'New Balance sneakers'})==='New Balance sneakers','title alone works');
+            const candidates=[{title:'New Balance 420 sneakers'},{title:'New Balance 440 V2 sneakers'}];
+            const ranked=rankResearchListings(candidates,{styleModel:'440 V2'});
+            check(ranked.length===2 && ranked[0].title.includes('440'),'optional model ranks without filtering');
+        """)
+
     def test_marketplace_searches_target_sold_items(self):
         self.evaluate("""
             var links=buildResearchLinks('Nike blue shoes & boots');

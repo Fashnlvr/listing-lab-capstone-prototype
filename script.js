@@ -1511,6 +1511,49 @@ function buildSearchSuggestions(state) {
   return { keywords: keywords.slice(0, 60), hashtags: tags.slice(0, 36).join(", ") };
 }
 
+function buildGeneralResearchQuery(state) {
+  const defaults = { shoes: "shoes", bags: "bag", tops: "top", bottoms: "pants", shorts: "shorts", skirts: "skirt",
+    dresses: "dress", outerwear: "jacket", activewear: "activewear", jewelry: "jewelry", accessories: "accessories" };
+  const types = {
+    shoes: /\b(sneakers?|trainers?|boots?|sandals?|heels?|loafers?|flats?|shoes?)\b/i,
+    bags: /\b(handbags?|backpacks?|totes?|satchels?|bags?)\b/i,
+    tops: /\b(sweaters?|cardigans?|hoodies?|sweatshirts?|blouses?|t-shirts?|shirts?|tops?)\b/i,
+    bottoms: /\b(jeans|leggings|trousers|pants)\b/i,
+    shorts: /\bshorts\b/i, skirts: /\bskirts?\b/i,
+    dresses: /\b(dresses|dress|jumpsuits?|rompers?)\b/i,
+    outerwear: /\b(jackets?|coats?|blazers?|vests?)\b/i,
+    activewear: /\b(leggings|swimsuits?|bikinis?|swimwear|activewear|sports bras?)\b/i,
+    jewelry: /\b(watches|watch|necklaces?|bracelets?|earrings?|rings?|jewelry)\b/i,
+    accessories: /\b(belts?|scarves|scarf|hats?|sunglasses|wallets?|accessories)\b/i,
+  };
+  const title = String(state.itemName || "").trim();
+  const brand = String(state.brand || "").trim();
+  // Exact model, material, fit, color and size are ranking hints, never mandatory search terms.
+  const match = state.category && types[state.category]
+    ? title.match(types[state.category]) : Object.values(types).map((pattern) => title.match(pattern)).find(Boolean);
+  const product = match?.[0] || defaults[state.category] || "";
+  if (brand && product) return `${brand} ${product}`.slice(0, 120);
+  const words = [brand, title || product].filter(Boolean).join(" ").split(/\s+/);
+  const seen = new Set();
+  return words.filter((word) => {
+    const key = normalize(word);
+    if (!key || seen.has(key)) return false;
+    seen.add(key); return true;
+  }).slice(0, 7).join(" ").slice(0, 120);
+}
+
+function rankResearchListings(listings, state) {
+  const hints = [state.styleModel, state.keyFeatures, state.material, state.color, state.gender, state.size]
+    .filter(Boolean).join(" ").toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2);
+  return [...listings].sort((a, b) => {
+    const score = (item) => {
+      const text = `${item.title} ${item.snippet || ""}`.toLowerCase();
+      return hints.filter((term) => text.includes(term)).length;
+    };
+    return score(b) - score(a);
+  });
+}
+
 function initNewListingPage() {
   if (!pageHas("#listingForm")) return;
 
@@ -1932,8 +1975,10 @@ function initNewListingPage() {
   }
 
   function buildCompQuery(state) {
-    const identity = state.itemName || state.productType || state.itemType || (state.category ? prettyCategory(state.category) : "");
-    const words = [state.brand, identity, state.styleModel, state.color, state.keyFeatures, state.material, state.gender, state.size]
+    const titleWords = String(state.itemName || "").trim().split(/\s+/).filter(Boolean);
+    const product = state.productType || state.itemType || (titleWords.length < 2 && state.category ? prettyCategory(state.category).split(/[&,/]/)[0].trim() : "");
+    const identity = state.itemName || product;
+    const words = [state.brand, identity, product, state.styleModel, state.color, state.keyFeatures, state.material, state.gender, state.size]
       .filter(Boolean).join(" ").trim().split(/\s+/);
     const seen = new Set();
     return words.filter((word) => {
@@ -1986,7 +2031,7 @@ function initNewListingPage() {
   function renderMarketResearch(research) {
     displayedResearchQuery = research.query;
     nodes.compResults.replaceChildren();
-    research.listings.forEach((comp) => {
+    rankResearchListings(research.listings, getFormState()).forEach((comp) => {
       const card = document.createElement("div");
       card.className = "border rounded p-2 small";
       const link = document.createElement("a");
@@ -1997,7 +2042,7 @@ function initNewListingPage() {
       link.href = parsed.href;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
-      link.textContent = `${comp.marketplace}: ${comp.title}`;
+      link.textContent = `${comp.marketplace}${comp.matchType ? ` · ${comp.matchType === "similar" ? "Similar" : "Related"} listing` : ""}: ${comp.title}`;
       const snippet = document.createElement("p");
       snippet.className = "mb-2";
       snippet.textContent = comp.snippet;
@@ -2169,9 +2214,9 @@ function initNewListingPage() {
         nodes.compStatus.textContent = "Enter a descriptive title, or add a brand and category, before researching.";
         return;
       }
-      if (marketResearch?.query === query && Date.now() - Date.parse(marketResearch.searchedAt) < 86400000 && !marketResearch.warnings?.length) {
+      if (marketResearch?.query === query && marketResearch.listings?.length > 0 && Date.now() - Date.parse(marketResearch.searchedAt) < 86400000 && !marketResearch.warnings?.length) {
         renderMarketResearch(marketResearch);
-        nodes.compStatus.textContent = marketResearch.listings.length ? "" : "No related listing leads found. Add an exact product type or model and try again.";
+        nodes.compStatus.textContent = marketResearch.listings.length ? "" : "No indexed listing leads found. Try a shorter title with the brand and product or model.";
         return;
       }
       const requestId = ++researchRequestId;
@@ -2181,7 +2226,7 @@ function initNewListingPage() {
       try {
         const response = await fetch("/api/market_research", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }), signal: AbortSignal.timeout(45000),
+          body: JSON.stringify({ query, searchQuery: buildGeneralResearchQuery(state) }), signal: AbortSignal.timeout(45000),
         });
         if (!(response.headers.get("content-type") || "").includes("application/json")) {
           const host = window.location.hostname;
@@ -2198,7 +2243,7 @@ function initNewListingPage() {
         marketResearch = data;
         selectedResearchTerms = [];
         renderMarketResearch(data);
-        nodes.compStatus.textContent = data.warnings?.join(" ") || (data.listings.length ? "" : "No related listing leads found. Add an exact product type or model and try again.");
+        nodes.compStatus.textContent = data.warnings?.join(" ") || (data.listings.length ? "" : "No indexed listing leads found. Try a shorter title with the brand and product or model.");
         updatePreview();
       } catch (error) {
         if (requestId === researchRequestId) nodes.compStatus.textContent = error.message || "Research unavailable. Please retry.";

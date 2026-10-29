@@ -14,12 +14,12 @@ The Python server replaces Live Server or `python3 -m http.server` when using re
 
 ## Use the results
 
-Each research request runs two Google queries through SerpApi: one for eBay item pages and one for Poshmark listing pages, with sold-oriented search wording. The same results feed comparable listing cards and repeated wording suggestions. Search results are leads, not authenticated sales data, search-volume measurements or proof of a trend.
+Each research request runs two Google queries through SerpApi: one for eBay item pages and one for Poshmark listing pages, using a broad query from the required title, brand and category, without requiring the word “sold”. Optional model, material, color and feature details rank the returned leads rather than becoming mandatory search terms. The same results feed comparable listing cards and repeated wording suggestions. Search results are leads, not authenticated sales data, search-volume measurements or proof of a trend.
 
 - Open a source listing and check whether it sold. Enter the verified sale price in USD, confirm the checkbox and select **Add to comps**. **Apply Comp Median** uses those verified prices and any manually entered comp values.
 - Select market wording that accurately describes your item. Selected terms automatically enter Keywords and Tags; unconfirmed terms never enter item descriptions.
 - Google snippets sometimes omit prices, show original prices or miss negotiated offers. The app never automatically treats a snippet price as a completed-sale price.
-- Saving a draft/listing saves its research and selected terms. Matching research is reused for 24 hours without a new request; changing the item query requires new research. Server cache is also 24 hours, but is in memory and may reset on restart or serverless cold starts. Partial failures are not cached.
+- Saving a draft/listing saves its research and selected terms. Matching research is reused for 24 hours without a new request; changing the item query requires new research. Server cache is also 24 hours, but is in memory and may reset on restart or serverless cold starts. Partial failures and empty results are not cached. Related listings are ranked by title/snippet overlap; they are not claimed to be exact matches or verified sales.
 - A request can use up to two search credits, including when no useful listings are found. Cache reuse can reduce usage; separate serverless instances do not share a cache. Monitor the provider's dashboard for authoritative usage.
 
 ## Deploy with a backend
