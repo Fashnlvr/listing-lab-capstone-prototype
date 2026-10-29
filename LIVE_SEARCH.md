@@ -45,3 +45,7 @@ The response includes safe diagnostics per attempt: engine, public query, return
 Old research from the active-inventory version is invalidated in both browser drafts and the server cache. Existing inventory records and manually entered comp prices are preserved. A frontend/backend version mismatch shows an error rather than displaying active results.
 
 See [SerpApi eBay Search](https://serpapi.com/ebay-search-api) for the deprecated Sold/Complete filters.
+
+Fallback title searches retain the first brand words and the product type found in the title, rather than retaining a model word at the expense of product type. For example, “New Balance Numeric 440 V2 Sneakers Men Size 11” broadens to “new balance sneakers”. All sold-status requirements remain in force.
+
+Cards display a price when a search snippet or supported USD rich-result field supplies one. Explicit “sold for” amounts take precedence over original prices; conflicting unqualified amounts remain blank. Displayed prices prefill the confirmation field but never enter comps until the seller confirms. eBay links retain the individual item ID and request its original view (`orig_cvip=true`, `nordt=true`); product catalog URLs are rejected. eBay can still remove or redirect an archived item, and search prices may omit a private accepted offer. Missing transaction prices are not reconstructed from a catalog page or guessed.

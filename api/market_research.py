@@ -1,5 +1,6 @@
 """Server-only marketplace research via SerpApi. Never return upstream credentials."""
 import json
+import math
 import os
 import re
 import time
@@ -29,6 +30,45 @@ def focused_search_query(query):
             words.append(word)
             seen.add(token)
     return " ".join(words[:7]) or query
+
+
+def broad_search_query(query):
+    """Keep title-derived brand words and product type, dropping model/details."""
+    words = focused_search_query(query).split()
+    product = re.search(r"\b(sneakers?|trainers?|shoes?|boots?|sandals?|loafers?|heels?|jeans|pants|shorts|skirts?|dresses|dress|jumpsuits?|rompers?|sweaters?|cardigans?|hoodies?|shirts?|blouses?|tops?|jackets?|coats?|blazers?|handbags?|backpacks?|totes?|bags?|wallets?|belts?|watches|watch|necklaces?|bracelets?|earrings?|rings?)\b", query, re.I)
+    if not product:
+        return " ".join(words[:3])
+    identity = words[:min(2, len(query[:product.start()].split()))]
+    return " ".join(dict.fromkeys(word.lower() for word in [*identity, product.group(0)]))
+
+
+def extract_displayed_price(result):
+    """Read search prices without claiming they are verified transaction values."""
+    snippet = str(result.get("snippet", ""))
+    # An explicitly described sale price is clearer than a crossed-out original.
+    explicit = re.search(r"\b(?:sold for|sale price[: ]*)\s*(?:US\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)", snippet, re.I)
+    if explicit:
+        amount = float(explicit.group(1).replace(",", ""))
+        return amount if math.isfinite(amount) and amount > 0 else None
+    prices = set()
+    for raw in re.findall(r"(?:US\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)(?!\d)", snippet):
+        amount = float(raw.replace(",", ""))
+        if math.isfinite(amount) and amount > 0:
+            prices.add(amount)
+    rich = result.get("rich_snippet", {})
+    if isinstance(rich, dict):
+        for position in ("top", "bottom"):
+            section = rich.get(position, {})
+            extensions = section.get("detected_extensions", {}) if isinstance(section, dict) else {}
+            if not isinstance(extensions, dict) or extensions.get("currency") not in ("$", "USD", "US$"):
+                continue
+            try:
+                amount = float(str(extensions["price"]).replace("$", "").replace(",", ""))
+                if math.isfinite(amount) and amount > 0:
+                    prices.add(amount)
+            except (KeyError, TypeError, ValueError):
+                pass
+    return next(iter(prices)) if len(prices) == 1 else None
 
 
 def relevance_words(text):
@@ -76,16 +116,18 @@ def normalize_results(results, domain, query):
         if not required or len(matches) < min(2, len(required)):
             continue
         identity = parsed.path.rstrip("/")
-        if domain == "ebay.com" and identity.split("/")[-1].isdigit():
-            identity = "/itm/" + identity.split("/")[-1]
+        if domain == "ebay.com":
+            item_id = identity.split("/")[-1]
+            if not item_id.isdigit():
+                continue
+            identity = "/itm/" + item_id
+            # Ask eBay to open the original item rather than a replacement offer.
+            url = f"https://www.ebay.com{identity}?nordt=true&orig_cvip=true&rt=nc"
         if identity in seen:
             continue
         seen.add(identity)
         relevance = len(matches) / len(required)
-        # A displayed number may be an asking price, old price or negotiated offer.
-        # Only explicit dollar amounts are displayed; nothing is treated as a sold price.
-        prices = re.findall(r"(?:US\s*)?\$\s*([\d,]+(?:\.\d{2})?)(?!\d)", snippet)
-        price = float(prices[0].replace(",", "")) if len(prices) == 1 else None
+        price = extract_displayed_price(result)
         normalized.append({"title": title, "url": url, "snippet": snippet,
                            "marketplace": "eBay" if domain == "ebay.com" else "Poshmark",
                            "displayedPrice": price, "soldVerified": False,
@@ -105,7 +147,7 @@ class SearchResults(list):
 
 def search_market(query, domain, key):
     focused = focused_search_query(query)
-    broad = " ".join(focused.split()[:3])
+    broad = broad_search_query(query)
     path = "itm" if domain == "ebay.com" else "listing"
     searches = [("google", f'site:{domain}/{path}/ {focused} "sold"'),
                 ("bing", f'site:{domain}/{path}/ {broad} "sold"')]
@@ -148,7 +190,7 @@ def search_market(query, domain, key):
 
 def research(query, key, search_query=None):
     broad_query = focused_search_query(search_query or query)
-    cache_key = "sold-leads-v1:" + broad_query.casefold()
+    cache_key = "sold-leads-v2:" + broad_query.casefold()
     with _lock:
         now = time.time()
         cached = _cache.get(cache_key)
@@ -178,7 +220,7 @@ def research(query, key, search_query=None):
         words = set(re.findall(r"[a-z][a-z-]{2,}", listing["title"].lower()))
         counts.update(words - STOPWORDS)
     terms = [{"term": word, "listingCount": count} for word, count in counts.most_common(24) if count >= 2]
-    result = {"researchMode": "sold-leads-v1", "query": query, "searchQuery": broad_query, "listings": listings, "terms": terms, "warnings": warnings,
+    result = {"researchMode": "sold-leads-v2", "query": query, "searchQuery": broad_query, "listings": listings, "terms": terms, "warnings": warnings,
               "cacheTtlSeconds": 86400 if all(sum(item.get("marketplace") == name for item in listings) >= 10 for name in ("eBay", "Poshmark")) else 300,
               "diagnostics": diagnostics, "searchedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "cached": False}
     if not warnings and listings:

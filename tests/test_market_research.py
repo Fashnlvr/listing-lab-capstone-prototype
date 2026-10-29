@@ -73,7 +73,7 @@ class ResearchTests(unittest.TestCase):
         parameters = [parse_qs(urlparse(call.args[0]).query) for call in request.call_args_list]
         self.assertEqual(parameters[0]["engine"], ["google"])
         self.assertEqual(parameters[1]["engine"], ["bing"])
-        self.assertEqual(parameters[1]["q"], ['site:ebay.com/itm/ New Balance sneakers "sold"'])
+        self.assertEqual(parameters[1]["q"], ['site:ebay.com/itm/ new balance sneakers "sold"'])
         self.assertEqual(listings[0]["searchEngine"], "bing")
         self.assertEqual([attempt["returned"] for attempt in listings.attempts], [0, 1])
         self.assertNotIn("api_key", json.dumps(listings.attempts))
@@ -146,6 +146,30 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(len(listings), 1)
         self.assertEqual(len(listings.warnings), 1)
         self.assertNotIn("private-url", listings.warnings[0])
+
+    def test_broad_title_keeps_brand_and_product_instead_of_model(self):
+        self.assertEqual(market.broad_search_query("New Balance Numeric 440 V2 Sneakers Men Size 11 Black Suede"), "new balance sneakers")
+        self.assertEqual(market.broad_search_query("Nike Air Max 90 Sneakers Size 10"), "nike air sneakers")
+        self.assertNotIn("Size", market.broad_search_query("Coach handbag Size M"))
+
+    def test_item_links_use_original_view_and_reject_catalog_pages(self):
+        rows = [{"link": url, "title": "New Balance sneakers", "snippet": "This listing sold. $45.00"} for url in
+                ("https://ebay.com/p/17072248303", "https://ebay.com/itm/New-Balance/123?tracking=foo", "https://ebay.com/itm/not-an-item")]
+        items = market.normalize_results(rows, "ebay.com", "New Balance sneakers")
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["url"], "https://www.ebay.com/itm/123?nordt=true&orig_cvip=true&rt=nc")
+
+    def test_rich_result_price_is_visible_without_snippet_price(self):
+        row = {"link": "https://ebay.com/itm/123", "title": "Nike shoes", "snippet": "This listing sold.",
+               "rich_snippet": {"bottom": {"detected_extensions": {"price": 45, "currency": "$"}}}}
+        item = market.normalize_results([row], "ebay.com", "Nike shoes")[0]
+        self.assertEqual(item["displayedPrice"], 45)
+        self.assertFalse(item["soldVerified"])
+
+    def test_explicit_sale_price_and_conflicting_amounts(self):
+        self.assertEqual(market.extract_displayed_price({"snippet": "Original $100; sold for $35.00"}), 35)
+        self.assertIsNone(market.extract_displayed_price({"snippet": "Sold out $35.00", "rich_snippet": {"bottom": {"detected_extensions": {"price": 100, "currency": "$"}}}}))
+        self.assertIsNone(market.extract_displayed_price({"snippet": "Sold out", "rich_snippet": {"bottom": {"detected_extensions": {"price": 45, "currency": "EUR"}}}}))
 
     def test_empty_results_are_not_cached(self):
         with patch.object(market, "search_market", return_value=[]) as search:

@@ -1669,7 +1669,7 @@ function initNewListingPage() {
     if (pricingPlan?.inputs) {
       try { state.pricingPlan = calculateResalePricing(pricingPlan.inputs, state.price); } catch { state.pricingPlan = null; }
     }
-    const researchMatches = marketResearch?.researchMode === "sold-leads-v1" && marketResearch.query === buildCompQuery(state);
+    const researchMatches = marketResearch?.researchMode === "sold-leads-v2" && marketResearch.query === buildCompQuery(state);
     state.marketResearch = researchMatches ? marketResearch : null;
     state.researchTerms = researchMatches ? selectedResearchTerms : [];
     const suggestions = buildSearchSuggestions(state);
@@ -1679,7 +1679,7 @@ function initNewListingPage() {
   }
 
   function setFormState(state) {
-    marketResearch = state.marketResearch?.researchMode === "sold-leads-v1" ? state.marketResearch : null;
+    marketResearch = state.marketResearch?.researchMode === "sold-leads-v2" ? state.marketResearch : null;
     selectedResearchTerms = marketResearch && Array.isArray(state.researchTerms) ? [...state.researchTerms] : [];
     displayedResearchQuery = "";
     researchRequestId++;
@@ -2006,6 +2006,13 @@ function initNewListingPage() {
       const snippet = document.createElement("p");
       snippet.className = "mb-2";
       snippet.textContent = comp.snippet;
+      const priceInfo = document.createElement("p");
+      priceInfo.className = "mb-2";
+      const shownPrice = Number(comp.displayedPrice);
+      const hasShownPrice = Number.isFinite(shownPrice) && shownPrice > 0;
+      priceInfo.textContent = hasShownPrice
+        ? `Price shown: $${shownPrice.toFixed(2)} · confirm final sale price`
+        : "Price unavailable in search · open the original listing";
       const priceLabel = document.createElement("label");
       priceLabel.className = "d-block";
       priceLabel.textContent = "Verified sold price (USD)";
@@ -2014,6 +2021,7 @@ function initNewListingPage() {
       input.min = "0.01";
       input.step = "0.01";
       input.className = "form-control form-control-sm mb-2";
+      if (hasShownPrice) input.value = shownPrice.toFixed(2);
       input.placeholder = comp.displayedPrice ? `Search shows $${Number(comp.displayedPrice).toFixed(2)} — verify first` : "Check the original listing";
       priceLabel.append(input);
       const confirm = document.createElement("label");
@@ -2039,7 +2047,7 @@ function initNewListingPage() {
         use.textContent = "Added to comps";
         nodes.compStatus.textContent = "";
       });
-      card.append(link, snippet, priceLabel, confirm, use);
+      card.append(link, snippet, priceInfo, priceLabel, confirm, use);
       nodes.compResults.append(card);
     });
     const termBox = $("#marketTermSuggestions");
@@ -2173,7 +2181,7 @@ function initNewListingPage() {
         nodes.compStatus.textContent = "Enter an item title (at least 4 characters) before researching.";
         return;
       }
-      if (marketResearch?.researchMode === "sold-leads-v1" && marketResearch.query === query && marketResearch.listings?.length > 0 && Date.now() - Date.parse(marketResearch.searchedAt) < (marketResearch.cacheTtlSeconds || 300) * 1000 && !marketResearch.warnings?.length) {
+      if (marketResearch?.researchMode === "sold-leads-v2" && marketResearch.query === query && marketResearch.listings?.length > 0 && Date.now() - Date.parse(marketResearch.searchedAt) < (marketResearch.cacheTtlSeconds || 300) * 1000 && !marketResearch.warnings?.length) {
         renderMarketResearch(marketResearch);
         nodes.compStatus.textContent = marketResearch.listings.length ? "" : "The search provider returned no usable listing results. This can be a temporary provider issue. Try Open Market Search, or retry with a shorter title.";
         return;
@@ -2199,7 +2207,7 @@ function initNewListingPage() {
         if (!response.ok) throw new Error(data.error || "Research unavailable.");
         if (requestId !== researchRequestId || buildCompQuery(getFormState()) !== query) return;
         if (!Array.isArray(data.listings) || !Array.isArray(data.terms) || data.query !== query) throw new Error("Invalid research response.");
-        if (data.researchMode !== "sold-leads-v1") throw new Error("The research backend still includes active listings. Deploy the latest sold-listing update, then retry.");
+        if (data.researchMode !== "sold-leads-v2") throw new Error("The research backend still includes active listings. Deploy the latest sold-listing update, then retry.");
         marketResearch = data;
         selectedResearchTerms = [];
         renderMarketResearch(data);
