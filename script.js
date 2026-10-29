@@ -1,5 +1,6 @@
 const STORAGE_KEYS = {
   listings: "listingLab:listings:v2",
+  inventoryBackups: "listingLab:inventoryBackups:v1",
   draft: "listingLab:draft:v2",
   draftCursor: "listingLab:draftCursor:v1",
   uspsUserId: "listingLab:uspsUserId:v1",
@@ -113,7 +114,6 @@ const CONDITION_SEARCH_TERMS = {
 };
 
 const DEFAULT_SKU_SETTINGS = {
-  prefix: "LL",
   nextNumber: 1,
   digits: 4,
 };
@@ -220,11 +220,60 @@ function getListings() {
   const raw = safeStorageGet(STORAGE_KEYS.listings);
   if (!raw) return [];
   const parsed = safeJsonParse(raw, []);
-  return Array.isArray(parsed) ? parsed : [];
+  return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === "object" && !Array.isArray(item)) : [];
+}
+
+function getInventoryBackups() {
+  const backups = safeJsonParse(safeStorageGet(STORAGE_KEYS.inventoryBackups), []);
+  return Array.isArray(backups) ? backups.filter((entry) => entry && typeof entry.raw === "string") : [];
+}
+
+function preserveInventoryBackup(raw = safeStorageGet(STORAGE_KEYS.listings)) {
+  if (!raw || raw === "[]") return true;
+  const backups = getInventoryBackups();
+  if (backups[0]?.raw === raw) return true;
+  backups.unshift({ raw, savedAt: new Date().toISOString() });
+  return safeStorageSet(STORAGE_KEYS.inventoryBackups, JSON.stringify(backups.slice(0, 5)));
 }
 
 function saveListings(listings) {
-  safeStorageSet(STORAGE_KEYS.listings, JSON.stringify(listings));
+  // Keep the previous records before any edit, deletion or replacement.
+  if (!preserveInventoryBackup()) return false;
+  return safeStorageSet(STORAGE_KEYS.listings, JSON.stringify(listings));
+}
+
+function mergeInventoryRecords(current, incoming) {
+  const merged = [...current];
+  const ids = new Set(current.map((item) => item.id));
+  const skus = new Set(current.map((item) => normalize(getListingSku(item))));
+  let added = 0;
+  let skipped = 0;
+  incoming.forEach((item) => {
+    if (!item || typeof item !== "object" || typeof item.id !== "string" || !item.id ||
+        (!item.itemName && !item.brand) || ids.has(item.id) || skus.has(normalize(getListingSku(item)))) {
+      skipped++;
+      return;
+    }
+    merged.push(item);
+    ids.add(item.id);
+    skus.add(normalize(getListingSku(item)));
+    added++;
+  });
+  return { listings: merged, added, skipped };
+}
+
+function getRecoverableInventory() {
+  const candidates = getInventoryBackups().flatMap((backup) => {
+    const records = safeJsonParse(backup.raw, []);
+    return Array.isArray(records) ? records : [];
+  });
+  const legacy = safeJsonParse(safeStorageGet("listingLab:listings:v1"), []);
+  if (Array.isArray(legacy)) candidates.push(...legacy);
+  // An editing draft may be the last surviving copy of a saved inventory item.
+  getDraftQueue().filter((draft) => draft.__editingId && (draft.itemName || draft.brand)).forEach((draft) => {
+    candidates.push({ ...draft, id: draft.__editingId });
+  });
+  return candidates;
 }
 
 function addListing(listing) {
@@ -236,12 +285,12 @@ function addListing(listing) {
     createdAt: listing.createdAt || now,
     updatedAt: listing.updatedAt || listing.createdAt || now,
   });
-  saveListings(listings);
+  return saveListings(listings);
 }
 
 function removeListing(id) {
   const listings = getListings().filter((listing) => listing.id !== id);
-  saveListings(listings);
+  return saveListings(listings);
 }
 
 function updateListing(id, updates) {
@@ -254,8 +303,7 @@ function updateListing(id, updates) {
     status: updates.status ? normalizeStatus(updates.status) : normalizeStatus(listings[idx].status),
     updatedAt: updates.updatedAt || new Date().toISOString(),
   };
-  saveListings(listings);
-  return true;
+  return saveListings(listings);
 }
 
 function getListingById(id) {
@@ -266,7 +314,6 @@ function getSkuSettings() {
   const raw = safeStorageGet(STORAGE_KEYS.skuSettings);
   const parsed = raw ? safeJsonParse(raw, DEFAULT_SKU_SETTINGS) : DEFAULT_SKU_SETTINGS;
   return {
-    prefix: String(parsed?.prefix || DEFAULT_SKU_SETTINGS.prefix).trim() || DEFAULT_SKU_SETTINGS.prefix,
     nextNumber: Math.max(1, Number.parseInt(parsed?.nextNumber, 10) || DEFAULT_SKU_SETTINGS.nextNumber),
     digits: Math.min(8, Math.max(1, Number.parseInt(parsed?.digits, 10) || DEFAULT_SKU_SETTINGS.digits)),
   };
@@ -274,29 +321,29 @@ function getSkuSettings() {
 
 function saveSkuSettings(settings) {
   const next = {
-    prefix: String(settings?.prefix || DEFAULT_SKU_SETTINGS.prefix).trim() || DEFAULT_SKU_SETTINGS.prefix,
     nextNumber: Math.max(1, Number.parseInt(settings?.nextNumber, 10) || DEFAULT_SKU_SETTINGS.nextNumber),
     digits: Math.min(8, Math.max(1, Number.parseInt(settings?.digits, 10) || DEFAULT_SKU_SETTINGS.digits)),
   };
-  safeStorageSet(STORAGE_KEYS.skuSettings, JSON.stringify(next));
-  return next;
+  return safeStorageSet(STORAGE_KEYS.skuSettings, JSON.stringify(next)) ? next : null;
 }
 
 function formatCustomSku(number, settings = getSkuSettings()) {
-  const prefix = String(settings.prefix || DEFAULT_SKU_SETTINGS.prefix).trim();
   const digits = Math.min(8, Math.max(1, Number.parseInt(settings.digits, 10) || DEFAULT_SKU_SETTINGS.digits));
   const nextNumber = Math.max(1, Number.parseInt(number, 10) || 1);
-  return `${prefix}-${String(nextNumber).padStart(digits, "0")}`;
+  return String(nextNumber).padStart(digits, "0");
 }
 
 function allocateNextSku() {
   const settings = getSkuSettings();
+  const used = new Set(getListings().map((listing) => normalize(getListingSku(listing))).filter(Boolean));
+  while (used.has(normalize(formatCustomSku(settings.nextNumber, settings)))) settings.nextNumber++;
   const sku = formatCustomSku(settings.nextNumber, settings);
-  saveSkuSettings({
-    ...settings,
-    nextNumber: settings.nextNumber + 1,
-  });
-  return sku;
+  const saved = saveSkuSettings({ ...settings, nextNumber: settings.nextNumber + 1 });
+  return saved ? sku : null;
+}
+
+function isSkuAvailable(sku, editingId = "") {
+  return !getListings().some((listing) => listing.id !== editingId && normalize(getListingSku(listing)) === normalize(sku));
 }
 
 function getListingSku(listing) {
@@ -314,25 +361,26 @@ function duplicateListing(id) {
   const duplicate = {
     ...listing,
     id: uid(),
-    itemName: `${listing.itemName || "Untitled item"} Copy`,
+    itemName: listing.itemName || "",
+    __draftId: uid(),
     status: "draft",
     sku: allocateNextSku(),
     createdAt: now,
     updatedAt: now,
   };
-  addListing(duplicate);
-  return duplicate;
+  if (!duplicate.sku) return null;
+  return addListing(duplicate) ? duplicate : null;
 }
 
 function getTemplates() {
   const raw = safeStorageGet(STORAGE_KEYS.templates);
   if (!raw) return [];
   const parsed = safeJsonParse(raw, []);
-  return Array.isArray(parsed) ? parsed.map((template) => buildTemplateRecord(template)) : [];
+  return Array.isArray(parsed) ? parsed.filter((template) => template && typeof template === "object").map((template) => buildTemplateRecord(template)) : [];
 }
 
 function saveTemplates(templates) {
-  safeStorageSet(STORAGE_KEYS.templates, JSON.stringify(templates));
+  return safeStorageSet(STORAGE_KEYS.templates, JSON.stringify(templates));
 }
 
 function upsertTemplate(template) {
@@ -344,12 +392,12 @@ function upsertTemplate(template) {
   } else {
     templates.unshift(normalizedTemplate);
   }
-  saveTemplates(templates);
+  return saveTemplates(templates);
 }
 
 function removeTemplate(id) {
   const templates = getTemplates().filter((template) => template.id !== id);
-  saveTemplates(templates);
+  return saveTemplates(templates);
 }
 
 function getTemplateById(id) {
@@ -382,8 +430,7 @@ function duplicateTemplate(id) {
     name: `${source.name || "Untitled Template"} Copy`,
     updatedAt: new Date().toISOString(),
   });
-  upsertTemplate(duplicate);
-  return duplicate;
+  return upsertTemplate(duplicate) ? duplicate : null;
 }
 
 const TEMPLATE_TOKEN_SAMPLES = {
@@ -414,14 +461,13 @@ function renderTemplateTokens(text, values = {}, fallbackValues = {}) {
     ...getTemplateTokenValues(values),
   };
 
-  const normalizedText = String(text || "")
-    .replace(/\bItem Name\b/gi, "{{itemName}}")
-    .replace(/\bBrand\b/gi, "{{brand}}")
-    .replace(/\bCategory\b/gi, "{{category}}")
-    .replace(/\bCondition\b/gi, "{{condition}}")
-    .replace(/\bPrice\b/gi, "{{price}}")
-    .replace(/\bMeasurements\b/gi, "{{measurements}}")
-    .replace(/\bFlaws\b/gi, "{{flaws}}");
+  const legacyTokens = { "item name": "itemName", brand: "brand", category: "category",
+    condition: "condition", price: "price", measurements: "measurements", flaws: "flaws" };
+  const normalizedText = String(text || "").split(/(\{\{\s*\w+\s*\}\}|\{\w+\})/g)
+    .map((part) => part.startsWith("{") ? part : part.replace(
+      /\b(Item Name|Brand|Category|Condition|Price|Measurements|Flaws)\b/g,
+      (match) => `{{${legacyTokens[match.toLowerCase()]}}}`
+    )).join("");
 
   return normalizedText.replace(/\{\{\s*(\w+)\s*\}\}|\{(\w+)\}/g, (_, modernToken, legacyToken) => {
     const key = modernToken || legacyToken;
@@ -469,6 +515,7 @@ function saveDraft(draft) {
     if (nextDraft.__editingId && item.__editingId) {
       return item.__editingId !== nextDraft.__editingId;
     }
+    if (nextDraft.__draftId && item.__draftId) return item.__draftId !== nextDraft.__draftId;
     return !(normalize(item.itemName) === normalize(nextDraft.itemName)
       && normalize(item.brand) === normalize(nextDraft.brand)
       && normalize(item.category) === normalize(nextDraft.category)
@@ -477,8 +524,9 @@ function saveDraft(draft) {
   });
 
   queue.unshift(nextDraft);
-  safeStorageSet(STORAGE_KEYS.draft, JSON.stringify(queue.slice(0, 10)));
+  if (!safeStorageSet(STORAGE_KEYS.draft, JSON.stringify(queue.slice(0, 10)))) return false;
   safeStorageSet(STORAGE_KEYS.draftCursor, "0");
+  return true;
 }
 
 function getDraftQueue() {
@@ -486,7 +534,7 @@ function getDraftQueue() {
   if (!raw) return [];
 
   const parsed = safeJsonParse(raw, null);
-  if (Array.isArray(parsed)) return parsed.filter(Boolean);
+  if (Array.isArray(parsed)) return parsed.filter((item) => item && typeof item === "object" && !Array.isArray(item));
   if (parsed && typeof parsed === "object") return [parsed];
   return [];
 }
@@ -645,7 +693,7 @@ function buildResearchLinks(query) {
   const encoded = encodeURIComponent(query);
   return {
     ebaySold: `https://www.ebay.com/sch/i.html?_nkw=${encoded}&LH_Sold=1&LH_Complete=1`,
-    poshmark: `https://poshmark.com/search?query=${encoded}`,
+    poshmark: `https://poshmark.com/search?query=${encoded}&availability=sold_out`,
     googlePoshmark: `https://www.google.com/search?q=${encodeURIComponent(`site:poshmark.com/listing/ ${query} "sold"`)}`,
     googleEbay: `https://www.google.com/search?q=${encodeURIComponent(`site:ebay.com/itm/ ${query} "sold"`)}`,
   };
@@ -873,72 +921,158 @@ function clampTitle(text, limit) {
 
 function additionalDetailLines(listing) {
   return [["Product type", listing.productType || listing.itemType], ["Style / model", listing.styleModel],
-    ["Key features", listing.keyFeatures], ["Material", listing.material],
+    ["Key features", listing.keyFeatures], ["Color", listing.color], ["Material", listing.material],
     ["Gender / department", listing.gender], ["Tagged size", listing.size]]
     .filter(([, value]) => String(value || "").trim())
     .map(([label, value]) => `${label}: ${String(value).trim()}`);
 }
 
 function buildListingTitle(listing) {
-  const hasDetails = additionalDetailLines(listing).length > 0;
-  return (hasDetails
-    ? [listing.brand, listing.productType || listing.itemType, listing.styleModel, listing.keyFeatures,
-       listing.itemName, listing.gender, listing.size ? `Size ${listing.size}` : ""]
-    : [listing.brand, listing.itemName]).filter(Boolean).join(" ").trim() || "Untitled item";
+  const enteredTitle = String(listing.itemName || "").trim();
+  if (enteredTitle) return enteredTitle;
+  return [listing.brand, listing.productType || listing.itemType, listing.styleModel, listing.keyFeatures,
+    listing.color, listing.gender, listing.size ? `Size ${listing.size}` : ""]
+    .filter(Boolean).join(" ").trim() || "Untitled item";
+}
+
+function composeListingDescription(listing) {
+  const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
+  const brand = clean(listing.brand);
+  const product = clean(listing.productType || listing.itemType);
+  const model = clean(listing.styleModel);
+  const title = clean(listing.itemName);
+  const color = clean(listing.color);
+  const size = clean(listing.size);
+  const material = clean(listing.material);
+  let subject = product ? [brand, product].filter(Boolean).join(" ") : title || (brand ? `${brand} item` : "");
+  if (!subject && !color && !size && !material && !listing.condition && !listing.keyFeatures) return "";
+  if (!subject) subject = "This item";
+  if (model && !normalize(subject).includes(normalize(model))) subject += ` (${model})`;
+  if (color && !normalize(subject).includes(normalize(color))) subject += ` in ${color}`;
+  const sentences = [subject.replace(/[.!?]+$/, "") + "."];
+  const department = clean(listing.gender);
+  if (size) sentences.push(`Tagged as size ${size}${department ? ` in ${department.toLowerCase()} sizing` : ""}.`);
+  else if (department) sentences.push(`Listed in the ${department.toLowerCase()} department.`);
+  if (material) sentences.push(`Made from ${material}.`);
+  const features = [];
+  clean(listing.keyFeatures).split(/[,;]+/).map(clean).filter(Boolean).forEach((feature) => pushUnique(features, feature));
+  (listing.researchTerms || []).forEach((term) => {
+    const value = clean(term);
+    if (value && !normalize([subject, material, size].join(" ")).includes(normalize(value))) pushUnique(features, value);
+  });
+  if (features.length) {
+    const joined = features.length < 2 ? features[0] : `${features.slice(0, -1).join(", ")} and ${features[features.length - 1]}`;
+    sentences.push(`Features include ${joined.replace(/[.!?]+$/, "")}.`);
+  }
+  const conditions = {
+    new: "New and unused.",
+    "like-new": "In like-new condition.",
+    good: "In good pre-owned condition.",
+    fair: "In fair pre-owned condition.",
+  };
+  if (conditions[listing.condition]) sentences.push(conditions[listing.condition]);
+  return sentences.join(" ");
 }
 
 function buildMarketplaceDescription(listing) {
-  const notes = String(listing.notes || "").trim();
-  const extra = additionalDetailLines(listing).filter((line) => !notes.toLowerCase().includes(line.toLowerCase()));
-  return [notes, extra.join("\n")].filter(Boolean).join("\n\n");
+  // The editable description is the buyer-facing copy, not an attribute dump.
+  return String(listing.notes || "").trim() || composeListingDescription(listing);
 }
 
 function getMarketplaceMap(listing) {
-  const titleBase = buildListingTitle(listing);
-  const description = buildMarketplaceDescription(listing);
-  const keywords = String(listing.keywords || "").trim();
-  const hashtags = String(listing.hashtags || "").trim();
-  const category = prettyCategory(listing.category);
-  const condition = prettyCondition(listing.condition);
+  const title = clampTitle(buildListingTitle(listing), 80);
+  const description = buildMarketplaceDescription(listing)
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<br\s*\/?>|<\/p>/gi, "\n").replace(/<[^>]+>/g, "").trim();
   const priceValue = Number(listing.price);
   const price = Number.isFinite(priceValue) && priceValue > 0 ? priceValue.toFixed(2) : "";
-
+  const styleTags = [];
+  const excluded = [listing.brand, listing.color, listing.itemName, listing.productType, listing.size, listing.gender].map(normalize);
+  [listing.keyFeatures, ...(listing.researchTerms || []), listing.material, listing.hashtags || ""]
+    .join(",").split(/[,;]+/).map((tag) => tag.trim().replace(/^#+/, ""))
+    .filter((tag) => tag && tag.length <= 25 && /^[a-z0-9 '&-]+$/i.test(tag) && !excluded.includes(normalize(tag)))
+    .forEach((tag) => pushUnique(styleTags, tag));
+  const common = {
+    title, description, brand: listing.brand || "", size: listing.size || "",
+    color: listing.color || "", material: listing.material || "", department: listing.gender || "",
+    sku: listing.sku || (listing.id ? getListingSku(listing) : ""), category: listing.category ? prettyCategory(listing.category) : "",
+    condition: listing.condition ? prettyCondition(listing.condition) : "", keywords: listing.keywords || "", hashtags: listing.hashtags || "",
+    listingPrice: price, price,
+  };
   return {
-    ebay: {
-      title: clampTitle(titleBase, 80),
-      category,
-      condition,
-      brand: listing.brand || "",
-      format: "Fixed Price",
-      quantity: "1",
-      price,
-      description,
-      keywords,
-      hashtags,
-    },
+    flyp: { ...common, tags: listing.hashtags || "" },
+    ebay: { ...common, format: "Buy It Now", quantity: "1", conditionId: "", categoryId: "" },
     poshmark: {
-      title: clampTitle(titleBase, 50),
-      category,
-      condition,
-      brand: listing.brand || "",
-      size: listing.size || "Add size in platform",
-      listingPrice: price,
-      originalPrice: "Add original retail price if known",
-      description,
-      keywords,
-      hashtags,
-    },
-    flyp: {
-      title: clampTitle(titleBase, 80),
-      category,
-      condition,
-      brand: listing.brand || "",
-      listingPrice: price,
-      description,
-      keywords,
-      hashtags,
+      ...common, description: description.slice(0, 1500),
+      listingPrice: price ? String(Math.max(1, Math.round(priceValue))) : "",
+      originalPrice: Number(listing.originalPrice) > 0 ? String(Math.round(Number(listing.originalPrice))) : "",
+      // Poshmark's condition field uses NWT/Boutique, not generic used-condition ratings.
+      condition: listing.newWithTags === true ? "NWT" : "",
+      styleTags: styleTags.slice(0, 3), availability: "Draft", quantity: "1",
     },
   };
+}
+
+function marketplaceFormFields(listing, platform) {
+  const target = getMarketplaceMap(listing)[platform] || getMarketplaceMap(listing).flyp;
+  const fields = {
+    "Title": target.title,
+    "Description": target.description,
+    [platform === "ebay" ? "Price" : "Listing Price"]: target.listingPrice,
+    [platform === "ebay" ? "Custom label (SKU)" : "SKU"]: target.sku, "Brand": target.brand, "Size": target.size,
+    "Color": target.color, "Material": target.material, "Department": target.department,
+    "Category reference": target.category,
+  };
+  if (platform === "poshmark") {
+    Object.assign(fields, { "Condition": target.condition, "Original Price": target.originalPrice,
+      "Quantity": target.quantity, "Availability": target.availability,
+      "Style Tag 1": target.styleTags[0] || "", "Style Tag 2": target.styleTags[1] || "", "Style Tag 3": target.styleTags[2] || "" });
+  } else {
+    fields.Condition = target.condition;
+    if (platform === "ebay") Object.assign(fields, { "Format": target.format, "Quantity": target.quantity });
+    else fields.Tags = target.tags;
+  }
+  return fields;
+}
+
+function marketplaceFormSummary(listing, platform) {
+  return Object.entries(marketplaceFormFields(listing, platform)).filter(([, value]) => value !== "")
+    .map(([label, value]) => `${label}: ${value}`).join("\n\n");
+}
+
+function marketplaceExportIssues(listing, platform) {
+  const full = getMarketplaceMap(listing).flyp;
+  const issues = [];
+  if (buildListingTitle(listing).length > 80) issues.push("Title shortened to 80 characters.");
+  if (platform === "poshmark") {
+    if (full.description.length > 1500) issues.push("Description shortened to 1,500 characters. Review before copying.");
+    if (Number(full.listingPrice) % 1) issues.push(`Poshmark price rounded to $${getMarketplaceMap(listing).poshmark.listingPrice}.`);
+    if (full.sku && !/^[a-z0-9-]+$/i.test(full.sku)) issues.push("Poshmark SKUs use letters, numbers and hyphens. Adjust this SKU in the listing form.");
+  }
+  if (platform === "ebay" && full.sku.length > 50) issues.push("eBay SKUs allow 50 characters. Shorten this SKU in the listing form.");
+  return issues;
+}
+
+function downloadExportFile(text, name, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function marketplaceCSV(listings, platform) {
+  const rows = listings.map((listing) => marketplaceFormFields(listing, platform));
+  if (!rows.length) return "";
+  const headers = Object.keys(rows[0]);
+  const cell = (value) => {
+    const text = String(value ?? "");
+    const safe = /^[=+@-]/.test(text) ? "'" + text : text;
+    return `"${safe.replaceAll('"', '""')}"`;
+  };
+  return [headers.map(cell).join(","), ...rows.map((row) => headers.map((header) => cell(row[header])).join(","))].join("\r\n");
 }
 
 function buildExportSummary(listing) {
@@ -946,6 +1080,7 @@ function buildExportSummary(listing) {
 
   if (listing.itemName || additionalDetailLines(listing).length) lines.push(`Title: ${buildListingTitle(listing)}`);
   if (listing.brand) lines.push(`Brand: ${listing.brand}`);
+  if (listing.sku) lines.push(`SKU: ${listing.sku}`);
   lines.push(...additionalDetailLines(listing));
   lines.push(`Category: ${prettyCategory(listing.category)}`);
   lines.push(`Condition: ${prettyCondition(listing.condition)}`);
@@ -981,12 +1116,21 @@ async function copyText(text) {
   }
 }
 
-function exportCSV(listings) {
+function exportCSV(listings, platform = "inventory") {
   if (!Array.isArray(listings) || !listings.length) return;
+  if (platform === "spreadsheet") {
+    downloadExportFile("\ufeff" + resellerSpreadsheetCSV(listings), "listing-lab-reseller-overview.csv", "text/csv;charset=utf-8");
+    return;
+  }
+  if (["flyp", "poshmark", "ebay"].includes(platform)) {
+    downloadExportFile("\ufeff" + marketplaceCSV(listings, platform), `listing-lab-${platform}-form-fields.csv`, "text/csv;charset=utf-8");
+    return;
+  }
 
   const headers = [
-    "itemName", "brand", "category", "condition", "status", "price", "notes", "keywords", "hashtags", "createdAt",
-    "itemType", "productType", "styleModel", "keyFeatures", "material", "gender", "size",
+    "id", "sku", "itemName", "brand", "category", "condition", "status", "price", "notes", "keywords", "hashtags", "createdAt", "updatedAt",
+    "itemType", "productType", "styleModel", "keyFeatures", "color", "material", "gender", "size",
+    "purchasePrice", "minSale", "targetPrice", "targetNetMargin", "minimumProfit", "targetProfit", "offerRoomPct", "mileage", "mileageCost", "estimatedNetProfit",
     "ebay_title", "ebay_category", "ebay_condition", "ebay_price", "ebay_description", "ebay_keywords", "ebay_hashtags",
     "poshmark_title", "poshmark_category", "poshmark_condition", "poshmark_price", "poshmark_description", "poshmark_keywords", "poshmark_hashtags",
     "flyp_title", "flyp_category", "flyp_condition", "flyp_price", "flyp_description", "flyp_keywords", "flyp_hashtags",
@@ -996,6 +1140,13 @@ function exportCSV(listings) {
     const map = getMarketplaceMap(listing);
     const merged = {
       ...listing,
+      sku: getListingSku(listing),
+      purchasePrice: listing.pricingPlan?.inputs.cogs ?? listing.purchasePrice ?? "",
+      minSale: listing.pricingPlan?.minSale ?? "", targetPrice: listing.pricingPlan?.targetPrice ?? "",
+      targetNetMargin: listing.pricingPlan?.inputs.targetMarginPct ?? "", minimumProfit: listing.pricingPlan?.inputs.minimumProfit ?? "",
+      targetProfit: listing.pricingPlan?.inputs.targetProfit ?? "", offerRoomPct: listing.pricingPlan?.inputs.offerRoomPct ?? "",
+      mileage: listing.pricingPlan?.inputs.mileage ?? "", mileageCost: listing.pricingPlan?.mileageCost ?? "",
+      estimatedNetProfit: listing.pricingPlan?.netProfit ?? "",
       ebay_title: map.ebay.title,
       ebay_category: map.ebay.category,
       ebay_condition: map.ebay.condition,
@@ -1032,8 +1183,17 @@ function exportCSV(listings) {
   URL.revokeObjectURL(url);
 }
 
-function exportJSON(listings) {
+function exportJSON(listings, platform = "inventory") {
   if (!Array.isArray(listings) || !listings.length) return;
+  if (platform === "spreadsheet") {
+    downloadExportFile(JSON.stringify(listings.map(resellerSpreadsheetRow), null, 2), "listing-lab-reseller-overview.json", "application/json;charset=utf-8");
+    return;
+  }
+  if (["flyp", "poshmark", "ebay"].includes(platform)) {
+    downloadExportFile(JSON.stringify(listings.map((listing) => marketplaceFormFields(listing, platform)), null, 2),
+      `listing-lab-${platform}-form-fields.json`, "application/json;charset=utf-8");
+    return;
+  }
   const blob = new Blob([JSON.stringify(listings, null, 2)], { type: "application/json;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1295,7 +1455,7 @@ function buildSearchSuggestions(state) {
   };
   const product = clean(state.productType || state.itemType || categoryProducts[state.category]);
   const model = clean(state.styleModel);
-  const color = clean(state.itemName);
+  const color = clean(state.color);
   const material = clean(state.material);
   const gender = clean(state.gender);
   const size = clean(state.size);
@@ -1310,6 +1470,7 @@ function buildSearchSuggestions(state) {
     keywords.push(phrase);
   };
   (state.researchTerms || []).forEach((term) => add(term));
+  add(clean(state.itemName));
   add(brand, product, model);
   if (product) {
     if (gender || size) add(gender, product, size ? `size ${size}` : "");
@@ -1359,6 +1520,11 @@ function initNewListingPage() {
   let selectedResearchTerms = [];
   let researchRequestId = 0;
   let displayedResearchQuery = "";
+  let currentDraftId = uid();
+  let generatedDescription = "";
+  let descriptionIsCustom = false;
+  let templateKeywords = "";
+  let pricingPlan = null;
   $("#addPhotoShotBtn").addEventListener("click", () => {
     const input = $("#additionalPhotoShot");
     const shot = input.value.trim();
@@ -1375,8 +1541,10 @@ function initNewListingPage() {
     material: $("#material"),
     gender: $("#gender"),
     size: $("#size"),
+    sku: $("#itemSku"),
 
     itemName: $("#itemName"),
+    color: $("#color"),
     brand: $("#brand"),
     category: $("#category"),
     condition: $("#condition"),
@@ -1387,19 +1555,19 @@ function initNewListingPage() {
   };
 
   const nodes = {
+    form,
     formError: $("#formError"),
     formStatus: $("#formStatus"),
     completenessText: $("#completenessText"),
     completenessBarTrack: $("#completenessBarTrack"),
     completenessBar: $("#completenessBar"),
-    suggestedRange: $("#suggestedRange"),
-    priceCheck: $("#priceCheck"),
     exportPreview: $("#exportPreview"),
     exportTitle: $("#exportTitle"),
     exportPrice: $("#exportPrice"),
     exportDescription: $("#exportDescription"),
     exportSellerNotes: $("#exportSellerNotes"),
     exportHashtags: $("#exportHashtags"),
+    exportKeywords: $("#exportKeywords"),
     listingCardTitle: $("#listingCardTitle"),
     listingSnapshotBrand: $("#listingSnapshotBrand"),
     listingSnapshotCategory: $("#listingSnapshotCategory"),
@@ -1410,6 +1578,7 @@ function initNewListingPage() {
     listingCardCondition: $("#listingCardCondition"),
     listingCardNotes: $("#listingCardNotes"),
     runCompSearchBtn: $("#runCompSearchBtn"),
+    runApiResearchBtn: $("#runApiResearchBtn"),
     applyCompPriceBtn: $("#applyCompPriceBtn"),
     compStatus: $("#compStatus"),
     compSummary: $("#compSummary"),
@@ -1424,7 +1593,6 @@ function initNewListingPage() {
     applyFormulaPriceBtn: $("#applyFormulaPriceBtn"),
     formulaStatus: $("#formulaStatus"),
     formulaSummary: $("#formulaSummary"),
-    generateDescriptionBtn: $("#generateDescriptionBtn"),
     templateSelect: $("#templateSelect"),
     templateName: $("#templateName"),
     templateTitlePattern: $("#templateTitlePattern"),
@@ -1464,9 +1632,17 @@ function initNewListingPage() {
       material: fields.material.value.trim(),
       gender: fields.gender.value.trim(),
       size: fields.size.value.trim(),
+      sku: fields.sku.value.trim(),
 
       photoPreparation,
+      manualComps: nodes.manualCompInputs.map((input) => input.value),
+      generatedDescription,
+      descriptionIsCustom,
+      __draftId: currentDraftId,
+      templateKeywords,
+      pricingPlan,
       itemName: fields.itemName.value.trim(),
+      color: fields.color.value.trim(),
       brand: fields.brand.value.trim(),
       category: fields.category.value,
       condition: fields.condition.value,
@@ -1476,11 +1652,14 @@ function initNewListingPage() {
       hashtags: fields.hashtags?.value.trim() || "",
       status: "draft",
     };
+    if (pricingPlan?.inputs) {
+      try { state.pricingPlan = calculateResalePricing(pricingPlan.inputs, state.price); } catch { state.pricingPlan = null; }
+    }
     const researchMatches = marketResearch && marketResearch.query === buildCompQuery(state);
     state.marketResearch = researchMatches ? marketResearch : null;
     state.researchTerms = researchMatches ? selectedResearchTerms : [];
     const suggestions = buildSearchSuggestions(state);
-    state.keywords = suggestions.keywords.join(", ");
+    state.keywords = mergeTemplateKeywords(suggestions.keywords.join(", "), templateKeywords);
     state.hashtags = suggestions.hashtags;
     return state;
   }
@@ -1490,7 +1669,26 @@ function initNewListingPage() {
     selectedResearchTerms = Array.isArray(state.researchTerms) ? [...state.researchTerms] : [];
     displayedResearchQuery = "";
     researchRequestId++;
+    currentDraftId = state.__draftId || uid();
+    generatedDescription = state.generatedDescription || "";
+    descriptionIsCustom = state.descriptionIsCustom === true;
+    templateKeywords = state.templateKeywords || "";
+    pricingPlan = state.pricingPlan || null;
+    latestCompQuery = "";
+    latestCompSource = "none";
+    nodes.manualCompInputs.forEach((input, index) => { input.value = String(state.manualComps?.[index] || ""); });
+    if (getManualCompValues(nodes.manualCompInputs).length) {
+      latestCompQuery = buildCompQuery({ ...state, category: LEGACY_PHOTO_CATEGORIES[state.category] || state.category });
+      latestCompSource = "manual";
+    }
+    nodes.compResults.replaceChildren();
+    $("#marketTermSuggestions").replaceChildren();
+    $("#marketSearchLinks").replaceChildren();
+    $("#marketSearchLinks").hidden = true;
+    $("#marketSearchStatus").textContent = "";
+    nodes.runCompSearchBtn.setAttribute("aria-expanded", "false");
     fields.itemName.value = state.itemName || "";
+    fields.color.value = state.color || "";
     fields.brand.value = state.brand || "";
     fields.category.value = LEGACY_PHOTO_CATEGORIES[state.category] || state.category || "";
     fields.itemType.value = state.itemType || "";
@@ -1500,6 +1698,7 @@ function initNewListingPage() {
     fields.material.value = state.material || "";
     fields.gender.value = state.gender || "";
     fields.size.value = state.size || "";
+    fields.sku.value = state.sku || (state.__editingId ? getListingSku(state) : "");
 
     photoPreparation = {
       completed: { ...(state.photoPreparation?.completed || {}) },
@@ -1547,25 +1746,12 @@ function initNewListingPage() {
   }
 
   function buildGeneratedDescription(state) {
-    const product = state.productType || state.itemType || (state.category ? prettyCategory(state.category) : "Item");
-    const headline = [state.brand, product, state.styleModel, state.itemName, state.gender,
-      state.size ? `Size ${state.size}` : ""].filter(Boolean).join(" ");
-    const lines = [headline];
-    const attributes = [
-      ["Brand", state.brand], ["Product", product], ["Style / model", state.styleModel],
-      ["Color", state.itemName], ["Department", state.gender], ["Tagged size", state.size],
-      ["Material", state.material], ["Features", state.keyFeatures],
-      ["Condition", state.condition ? prettyCondition(state.condition) : ""],
-    ].filter(([, value]) => value);
-    lines.push("", ...attributes.map(([label, value]) => `${label}: ${value}`));
     const existing = String(state.notes || "").trim();
-    // Keep seller disclosures and measurements; repeated generation replaces only our own block.
-    const marker = "\n\nSeller notes:\n";
-    const sellerNotes = existing.startsWith(headline + "\n")
-      ? (existing.includes(marker) ? existing.split(marker).slice(1).join(marker) : "")
+    const sellerNotes = generatedDescription && existing.startsWith(generatedDescription)
+      ? existing.slice(generatedDescription.length).replace(/^\s*Seller notes:\n/, "").trim()
       : existing;
-    if (sellerNotes) lines.push("", "Seller notes:", sellerNotes);
-    return lines.join("\n");
+    generatedDescription = composeListingDescription(state);
+    return [generatedDescription, sellerNotes].filter(Boolean).join("\n\n");
   }
 
   function fillTemplateEditor(template) {
@@ -1608,12 +1794,12 @@ function initNewListingPage() {
 
     const title = renderTemplateTokens(template.titlePattern, tokenValues, TEMPLATE_TOKEN_SAMPLES);
     if (!fields.itemName.value.trim() && title) fields.itemName.value = title;
-    if (!fields.category.value && template.category) fields.category.value = template.category;
+    if (!fields.category.value && template.category) fields.category.value = LEGACY_PHOTO_CATEGORIES[template.category] || template.category;
     if (!fields.condition.value && template.condition) fields.condition.value = template.condition;
 
     const renderedKeywords = renderTemplateTokens(template.keywords, tokenValues, TEMPLATE_TOKEN_SAMPLES);
     if (renderedKeywords) {
-      fields.keywords.value = mergeTemplateKeywords(fields.keywords.value, renderedKeywords);
+      templateKeywords = mergeTemplateKeywords(templateKeywords, renderedKeywords);
     }
 
     fields.notes.value = appendUniqueNoteSections(fields.notes.value, [
@@ -1646,8 +1832,19 @@ function initNewListingPage() {
     }
   }
 
-  function updatePreview() {
-    const state = getFormState();
+  function updatePreview(event) {
+    const editingDescription = event?.target === fields.notes;
+    if (editingDescription) {
+      const text = fields.notes.value.trim();
+      if (!text) { generatedDescription = ""; descriptionIsCustom = false; }
+      else if (generatedDescription) descriptionIsCustom = !text.startsWith(generatedDescription);
+    }
+    let state = getFormState();
+    if (!editingDescription && !descriptionIsCustom) {
+      fields.notes.value = buildGeneratedDescription(state);
+      syncFilledState(fields.notes);
+      state = getFormState();
+    }
     document.querySelectorAll("[data-condition]").forEach((button) => {
       const selected = button.dataset.condition === state.condition;
       button.setAttribute("aria-pressed", String(selected));
@@ -1655,11 +1852,13 @@ function initNewListingPage() {
       button.classList.toggle("text-bg-dark", selected);
     });
     updateCompleteness(state);
+    const skuSettings = getSkuSettings();
+    fields.sku.placeholder = `Auto: ${formatCustomSku(skuSettings.nextNumber, skuSettings)}`;
     const currentResearchQuery = buildCompQuery(state);
     if (displayedResearchQuery && displayedResearchQuery !== currentResearchQuery) {
       nodes.compResults.replaceChildren();
       $("#marketTermSuggestions").replaceChildren();
-      nodes.compStatus.textContent = "Item details changed. Run market research for this item.";
+      nodes.compStatus.textContent = "";
       nodes.compSummary.textContent = "";
       displayedResearchQuery = "";
     }
@@ -1667,19 +1866,11 @@ function initNewListingPage() {
 
     const pricingGuide = getPricingGuide(state);
     const suggestedRange = pricingGuide.range;
-    if (suggestedRange) {
-      const rangeLabel = `$${suggestedRange[0]} - $${suggestedRange[1]}`;
-      nodes.suggestedRange.textContent = pricingGuide.source === "manual"
-        ? `${rangeLabel} (manual comps)`
-        : pricingGuide.source === "live"
-          ? `${rangeLabel} (live comps)`
-          : `${rangeLabel} (estimated)`;
-    } else {
-      nodes.suggestedRange.textContent = "-";
-    }
-
+    const plan = state.pricingPlan;
+    $("#listingPricingSummary").hidden = !plan;
+    $("#listingPricingSummary").textContent = plan
+      ? `Min Sale: $${plan.minSale.toFixed(2)} · Target: $${plan.targetPrice.toFixed(2)} · Net Margin at Price: ${plan.marginPct === null ? "—" : plan.marginPct.toFixed(1) + "%"}` : "";
     const priceCheck = isPriceValid(state.price, suggestedRange);
-    nodes.priceCheck.textContent = priceCheck.msg;
 
     const title = buildListingTitle(state);
     const condition = prettyCondition(state.condition);
@@ -1699,7 +1890,7 @@ function initNewListingPage() {
         : "Please review the photos for overall item details and condition.",
       "Message with any questions before purchase.",
     ].join("\n");
-    fields.keywords.value = generateKeywordsFromState(state).join(", ");
+    fields.keywords.value = state.keywords;
     state.keywords = fields.keywords.value;
 
     if (nodes.listingCardTitle) nodes.listingCardTitle.textContent = title;
@@ -1715,23 +1906,42 @@ function initNewListingPage() {
       state.hashtags = fields.hashtags.value;
     }
 
-    nodes.exportPreview.textContent = buildExportSummary(state);
-    if (nodes.exportTitle) nodes.exportTitle.textContent = title;
-    if (nodes.exportPrice) nodes.exportPrice.textContent = price;
-    if (nodes.exportDescription) nodes.exportDescription.textContent = descriptionText;
-    if (nodes.exportSellerNotes) nodes.exportSellerNotes.textContent = sellerNotesText;
-    if (nodes.exportHashtags) nodes.exportHashtags.textContent = state.hashtags || "Add item details to populate tags.";
+    const platform = $("#exportPlatform").value;
+    const target = getMarketplaceMap(state)[platform];
+    const hasItemData = [state.itemName, state.brand, state.category, state.condition, state.color, state.productType,
+      state.itemType, state.styleModel, state.keyFeatures, state.material, state.gender, state.size, state.sku, state.notes]
+      .some((value) => String(value || "").trim()) || state.price > 0;
+    nodes.exportPreview.textContent = hasItemData ? marketplaceFormSummary(state, platform) : "";
+    if (nodes.exportTitle) nodes.exportTitle.textContent = target.title === "Untitled item" ? "" : target.title;
+    if (nodes.exportPrice) nodes.exportPrice.textContent = target.listingPrice;
+    if (nodes.exportDescription) nodes.exportDescription.textContent = target.description;
+    if (nodes.exportSellerNotes) nodes.exportSellerNotes.textContent = hasItemData ? Object.entries(marketplaceFormFields(state, platform))
+      .filter(([key, value]) => !["Title", "Description", "Price", "Listing Price"].includes(key) && value !== "")
+      .map(([key, value]) => `${key}: ${value}`).join("\n") : "";
+    if (nodes.exportKeywords) nodes.exportKeywords.textContent = state.keywords;
+    const isPoshmark = platform === "poshmark";
+    $("#exportTagsLabel").textContent = isPoshmark ? "Style Tags" : platform === "ebay" ? "Tags (reference)" : "Tags";
+    if (nodes.exportHashtags) nodes.exportHashtags.textContent = isPoshmark ? target.styleTags.join(", ") : state.hashtags;
+    $("#exportCompatibilityStatus").textContent = marketplaceExportIssues(state, platform).join(" ");
+    document.querySelectorAll(".export-copy-btn").forEach((button) => {
+      button.disabled = !document.getElementById(button.getAttribute("data-copy-target"))?.textContent.trim();
+    });
+    $("#copyBtn").disabled = !nodes.exportPreview.textContent.trim();
+    $("#downloadFormFieldsBtn").disabled = !hasItemData;
 
   }
 
   function buildCompQuery(state) {
-    return [state.brand, state.productType || state.itemType || (state.category ? prettyCategory(state.category) : ""),
-      state.styleModel, state.itemName, state.keyFeatures, state.material, state.gender, state.size]
-      .filter(Boolean)
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 180);
+    const identity = state.itemName || state.productType || state.itemType || (state.category ? prettyCategory(state.category) : "");
+    const words = [state.brand, identity, state.styleModel, state.color, state.keyFeatures, state.material, state.gender, state.size]
+      .filter(Boolean).join(" ").trim().split(/\s+/);
+    const seen = new Set();
+    return words.filter((word) => {
+      const token = word.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (!token || seen.has(token)) return false;
+      seen.add(token);
+      return true;
+    }).join(" ").slice(0, 180);
   }
 
   function getPricingGuide(state) {
@@ -1822,7 +2032,7 @@ function initNewListingPage() {
         slot.dispatchEvent(new Event("input", { bubbles: true }));
         use.disabled = true;
         use.textContent = "Added to comps";
-        nodes.compStatus.textContent = "Verified price added. Apply Comp Median when ready.";
+        nodes.compStatus.textContent = "";
       });
       card.append(link, snippet, priceLabel, confirm, use);
       nodes.compResults.append(card);
@@ -1850,7 +2060,7 @@ function initNewListingPage() {
         termBox.append(label);
       });
     }
-    nodes.compSummary.textContent = `${research.listings.length} listing leads. Prices and sold status need verification. ${research.cached ? "Saved search reused." : "Two marketplace searches requested."}`;
+    nodes.compSummary.textContent = "";
   }
 
   function applyFormulaPricing() {
@@ -1865,12 +2075,8 @@ function initNewListingPage() {
     const [low, high] = pricingGuide.range;
     const suggested = pricingGuide.suggested;
     fields.price.value = suggested.toFixed(2);
-    nodes.formulaSummary.textContent = `Range: $${low}-$${high} | Suggested: $${suggested.toFixed(2)} | Source: ${pricingGuide.source === "manual" ? "manual comps" : pricingGuide.source === "live" ? "live sold comps" : "local estimate"}.`;
-    nodes.formulaStatus.textContent = pricingGuide.source === "manual"
-      ? `Applied price from manual comps: $${suggested.toFixed(2)}.`
-      : pricingGuide.source === "live"
-        ? `Applied price from live sold comps: $${suggested.toFixed(2)}.`
-        : `Applied estimated price: $${suggested.toFixed(2)}.`;
+    nodes.formulaSummary.textContent = "";
+    nodes.formulaStatus.textContent = "";
 
     if (!fields.keywords.value.trim()) {
       fields.keywords.value = generateKeywordsFromState(state).join(", ");
@@ -1892,37 +2098,98 @@ function initNewListingPage() {
   }
 
   let currentEditingId = "";
-  const activeDraft = loadDraft({ advance: true });
-  if (activeDraft) {
-    loadDraftIntoForm(
-      activeDraft,
-      activeDraft.__editingId ? "Loaded latest draft for editing." : "Loaded latest saved draft."
-    );
-  }
+  const pageParams = new URLSearchParams(window.location.search);
+  const incomingPricing = readPricingSession("listingLab:pricingTransfer:v1");
+  const hasPricingTransfer = pageParams.has("pricing");
+  const validTransfer = hasPricingTransfer && incomingPricing?.token === pageParams.get("pricing") && incomingPricing.draft;
+  const startFresh = pageParams.get("new") === "1" || hasPricingTransfer;
+  const activeDraft = validTransfer ? incomingPricing.draft : startFresh ? null : loadDraft({ advance: true });
+  if (startFresh && !validTransfer) resetListingForm();
+  if (activeDraft) loadDraftIntoForm(activeDraft, validTransfer ? "Calculated pricing applied. Save the listing to keep it." : activeDraft.__editingId ? "Loaded latest draft for editing." : "Loaded latest saved draft.");
+  if (hasPricingTransfer && !validTransfer) setError("The calculator handoff is unavailable. Load your saved draft to continue.");
+
+  document.querySelectorAll('a[href="pricing.html"]').forEach((link) => {
+    link.addEventListener("click", (event) => {
+      const draft = { ...getFormState(), ...(currentEditingId ? { __editingId: currentEditingId } : {}) };
+      const token = uid();
+      if (!saveDraft(draft) || !writePricingSession("listingLab:pricingContext:v1", { token, draft })) {
+        event.preventDefault();
+        setError("Could not preserve your listing for the calculator. Check browser storage before leaving.");
+        return;
+      }
+      link.href = `pricing.html?context=${encodeURIComponent(token)}`;
+    });
+  });
 
   if (nodes.runCompSearchBtn) {
-    nodes.runCompSearchBtn.addEventListener("click", async () => {
+    nodes.runCompSearchBtn.addEventListener("click", () => {
+      const query = buildCompQuery(getFormState());
+      const status = $("#marketSearchStatus");
+      if (!query) {
+        status.textContent = "Add item details before opening market searches.";
+        return;
+      }
+      const links = buildResearchLinks(query);
+      const container = $("#marketSearchLinks");
+      container.replaceChildren();
+      const blocked = [];
+      [["eBay Sold Listings", links.ebaySold], ["Poshmark Sold Listings", links.poshmark]].forEach(([label, url]) => {
+        const tab = window.open("", "_blank");
+        if (tab) {
+          tab.opener = null;
+          tab.location.href = url;
+        } else {
+          blocked.push([label, url]);
+        }
+      });
+      // Keep a recovery link only when the browser blocks a new tab.
+      blocked.forEach(([label, url]) => {
+        const link = document.createElement("a");
+        link.className = "btn btn-outline-secondary btn-sm me-2 mb-2";
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = label;
+        container.append(link);
+      });
+      container.hidden = blocked.length === 0;
+      nodes.runCompSearchBtn.setAttribute("aria-expanded", String(blocked.length > 0));
+      status.textContent = blocked.length
+        ? "Allow pop-ups for Listing Lab to open both sold searches automatically, or use the blocked search links below."
+        : "";
+    });
+  }
+
+  if (nodes.runApiResearchBtn) {
+    nodes.runApiResearchBtn.addEventListener("click", async () => {
       const state = getFormState();
       const query = buildCompQuery(state);
-      if (!state.brand || !state.category) {
-        nodes.compStatus.textContent = "Add a brand and category before researching.";
+      const hasDescriptiveTitle = state.itemName.trim().split(/\s+/).filter(Boolean).length >= 2;
+      if (!hasDescriptiveTitle && !(state.brand && (state.category || state.productType || state.itemType))) {
+        nodes.compStatus.textContent = "Enter a descriptive title, or add a brand and category, before researching.";
         return;
       }
       if (marketResearch?.query === query && Date.now() - Date.parse(marketResearch.searchedAt) < 86400000 && !marketResearch.warnings?.length) {
         renderMarketResearch(marketResearch);
-        nodes.compStatus.textContent = "Reused this item's saved research without another API request.";
+        nodes.compStatus.textContent = marketResearch.listings.length ? "" : "No related listing leads found. Add an exact product type or model and try again.";
         return;
       }
       const requestId = ++researchRequestId;
-      nodes.runCompSearchBtn.disabled = true;
-      nodes.compStatus.textContent = "Searching Google for eBay and Poshmark listing leads…";
+      nodes.runApiResearchBtn.disabled = true;
+      nodes.runApiResearchBtn.textContent = "Researching…";
+      nodes.compStatus.textContent = "";
       try {
         const response = await fetch("/api/market_research", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query }), signal: AbortSignal.timeout(45000),
         });
         if (!(response.headers.get("content-type") || "").includes("application/json")) {
-          throw new Error("Live research requires the backend. Run python3 server.py or use the backend-enabled deployment.");
+          const host = window.location.hostname;
+          throw new Error(host.endsWith("github.io")
+            ? "GitHub Pages cannot run API research. Open your deployed Vercel site and try Research with API there."
+            : ["localhost", "127.0.0.1"].includes(host)
+              ? "This preview cannot run API research. Start python3 server.py and open http://127.0.0.1:8000/new-listing.html, or use your deployed Vercel site."
+              : "The research backend is unavailable on this deployment. Deploy the api folder to Vercel and add SERPAPI_KEY, then redeploy.");
         }
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Research unavailable.");
@@ -1931,12 +2198,13 @@ function initNewListingPage() {
         marketResearch = data;
         selectedResearchTerms = [];
         renderMarketResearch(data);
-        nodes.compStatus.textContent = data.warnings?.join(" ") || "Research ready. Verify prices and select relevant market wording.";
+        nodes.compStatus.textContent = data.warnings?.join(" ") || (data.listings.length ? "" : "No related listing leads found. Add an exact product type or model and try again.");
         updatePreview();
       } catch (error) {
         if (requestId === researchRequestId) nodes.compStatus.textContent = error.message || "Research unavailable. Please retry.";
       } finally {
-        nodes.runCompSearchBtn.disabled = false;
+        nodes.runApiResearchBtn.disabled = false;
+        nodes.runApiResearchBtn.textContent = "Research with API";
       }
     });
   }
@@ -1958,8 +2226,8 @@ function initNewListingPage() {
       latestCompQuery = buildCompQuery(getFormState());
       latestCompSource = "manual";
       fields.price.value = latestCompMedian.toFixed(2);
-      nodes.compSummary.textContent = `Comps: ${summary.count} | Min $${summary.min.toFixed(2)} | Median $${summary.median.toFixed(2)} | Avg $${summary.average.toFixed(2)} | Max $${summary.max.toFixed(2)} | Source: manual comps.`;
-      nodes.compStatus.textContent = `Applied manual comp median: $${latestCompMedian.toFixed(2)}.`;
+      nodes.compSummary.textContent = "";
+      nodes.compStatus.textContent = "";
       updatePreview();
     });
   }
@@ -1974,11 +2242,12 @@ function initNewListingPage() {
 
   $("#saveDraftBtn").addEventListener("click", () => {
     const draftState = getFormState();
-    saveDraft({
+    const saved = saveDraft({
       ...draftState,
       status: "draft",
       ...(currentEditingId ? { __editingId: currentEditingId } : {}),
     });
+    if (!saved) { setError("Draft could not be saved. Browser storage may be full or unavailable. Your form is still here."); return; }
     setStatus("Draft saved with Draft status.");
   });
 
@@ -2011,15 +2280,6 @@ function initNewListingPage() {
     });
   });
 
-  if (nodes.generateDescriptionBtn) {
-    nodes.generateDescriptionBtn.addEventListener("click", () => {
-      const state = getFormState();
-      fields.notes.value = buildGeneratedDescription(state);
-      setStatus("Description generated.");
-      updatePreview();
-    });
-  }
-
   if (nodes.templateSelect) {
     nodes.templateSelect.addEventListener("change", () => {
       fillTemplateEditor(getTemplateById(nodes.templateSelect.value));
@@ -2038,7 +2298,7 @@ function initNewListingPage() {
       const template = buildTemplateRecord({
         id: selectedId || uid(),
         name,
-        titlePattern: nodes.templateTitlePattern?.value.trim() || "",
+        titlePattern: nodes.templateTitlePattern?.value.trim() || getTemplateById(selectedId)?.titlePattern || "",
         description: nodes.templateDescription.value.trim(),
         keywords: nodes.templateKeywords.value.trim(),
         shippingNotes: nodes.templateShippingNotes.value.trim(),
@@ -2049,7 +2309,7 @@ function initNewListingPage() {
         updatedAt: new Date().toISOString(),
       });
 
-      upsertTemplate(template);
+      if (!upsertTemplate(template)) { nodes.templateStatus.textContent = "Template could not be saved. Browser storage may be full or unavailable."; return; }
       renderTemplateOptions(template.id);
       nodes.templateStatus.textContent = "Template saved.";
     });
@@ -2074,7 +2334,7 @@ function initNewListingPage() {
         nodes.templateStatus.textContent = "Select a template to delete.";
         return;
       }
-      removeTemplate(selectedId);
+      if (!removeTemplate(selectedId)) { nodes.templateStatus.textContent = "Template could not be deleted. Browser storage is unavailable."; return; }
       renderTemplateOptions();
       fillTemplateEditor(null);
       nodes.templateStatus.textContent = "Template deleted.";
@@ -2088,7 +2348,7 @@ function initNewListingPage() {
 
     const state = getFormState();
     if (!state.itemName) {
-      setError("Item name is required.");
+      setError("Title is required.");
       return;
     }
     if (!state.brand) {
@@ -2108,22 +2368,34 @@ function initNewListingPage() {
       return;
     }
 
+    if (state.sku && !isSkuAvailable(state.sku, currentEditingId)) {
+      setError("That SKU is already assigned to another item. Enter a unique SKU.");
+      fields.sku.focus();
+      return;
+    }
+    let saved;
     if (currentEditingId) {
       const existingListing = getListingById(currentEditingId);
-      updateListing(currentEditingId, {
+      if (!existingListing) { setError("This listing no longer exists. Save a draft or start a new listing."); return; }
+      const sku = state.sku || allocateNextSku();
+      if (!sku) { setError("SKU could not be saved. Browser storage may be full or unavailable."); return; }
+      saved = updateListing(currentEditingId, {
         ...state,
-        status: "ready",
-        sku: existingListing?.sku || allocateNextSku(),
+        status: normalizeStatus(existingListing.status),
+        sku,
       });
     } else {
-      addListing({
+      const sku = state.sku || allocateNextSku();
+      if (!sku) { setError("Listing could not be saved. Browser storage may be full or unavailable."); return; }
+      saved = addListing({
         id: uid(),
         ...state,
         status: "ready",
-        sku: allocateNextSku(),
+        sku,
         createdAt: new Date().toISOString(),
       });
     }
+    if (!saved) { setError("Listing could not be saved. Browser storage may be full or unavailable. Save or export your work before clearing storage."); return; }
     window.location.href = "dashboard.html";
   });
 
@@ -2140,6 +2412,11 @@ function initNewListingPage() {
     field.addEventListener("change", updatePreview);
   });
 
+  $("#exportPlatform").addEventListener("change", updatePreview);
+  $("#downloadFormFieldsBtn").addEventListener("click", () => {
+    const platform = $("#exportPlatform").value;
+    downloadExportFile(marketplaceFormSummary(getFormState(), platform), `listing-lab-${platform}-form-fields.txt`, "text/plain;charset=utf-8");
+  });
   renderTemplateOptions();
   updatePreview();
 }
@@ -2171,7 +2448,6 @@ function initTemplatesPage() {
   const clearBtn = $("#clearLibraryTemplateBtn");
   const deleteBtn = $("#deleteLibraryTemplateBtn");
   const skuFields = {
-    prefix: $("#skuPrefix"),
     nextNumber: $("#skuStartNumber"),
     digits: $("#skuDigits"),
     preview: $("#skuPreviewBadge"),
@@ -2186,6 +2462,7 @@ function initTemplatesPage() {
 
   function getEditorTemplate() {
     return buildTemplateRecord({
+      ...getTemplateById(selectedTemplateId),
       id: selectedTemplateId || uid(),
       name: fields.name.value.trim(),
       titlePattern: fields.titlePattern?.value.trim() || "",
@@ -2217,7 +2494,6 @@ function initTemplatesPage() {
 
   function renderSkuSettings() {
     const settings = getSkuSettings();
-    if (skuFields.prefix) skuFields.prefix.value = settings.prefix;
     if (skuFields.nextNumber) skuFields.nextNumber.value = String(settings.nextNumber);
     if (skuFields.digits) skuFields.digits.value = String(settings.digits);
     if (skuFields.preview) skuFields.preview.textContent = formatCustomSku(settings.nextNumber, settings);
@@ -2225,7 +2501,6 @@ function initTemplatesPage() {
 
   function getSkuSettingsFromForm() {
     return saveSkuSettings({
-      prefix: skuFields.prefix?.value || DEFAULT_SKU_SETTINGS.prefix,
       nextNumber: skuFields.nextNumber?.value || DEFAULT_SKU_SETTINGS.nextNumber,
       digits: skuFields.digits?.value || DEFAULT_SKU_SETTINGS.digits,
     });
@@ -2292,7 +2567,7 @@ function initTemplatesPage() {
       });
 
       card.querySelector("[data-delete-template]").addEventListener("click", () => {
-        removeTemplate(template.id);
+        if (!removeTemplate(template.id)) { libraryStatus.textContent = "Template could not be deleted. Browser storage is unavailable."; return; }
         if (selectedTemplateId === template.id) clearEditor();
         renderLibrary();
         libraryStatus.textContent = "Template deleted.";
@@ -2319,7 +2594,7 @@ function initTemplatesPage() {
       return;
     }
     const isUpdate = Boolean(selectedTemplateId && getTemplateById(selectedTemplateId));
-    upsertTemplate(template);
+    if (!upsertTemplate(template)) { editorStatus.textContent = "Template could not be saved. Browser storage may be full or unavailable."; return; }
     selectedTemplateId = template.id;
     renderLibrary();
     editorStatus.textContent = isUpdate ? "Template updated." : "New template saved.";
@@ -2344,7 +2619,7 @@ function initTemplatesPage() {
     }
     draftTemplate.id = uid();
     draftTemplate.name = `${draftTemplate.name} Copy`;
-    upsertTemplate(draftTemplate);
+    if (!upsertTemplate(draftTemplate)) { editorStatus.textContent = "Template could not be saved. Browser storage may be full or unavailable."; return; }
     fillEditor(draftTemplate);
     renderLibrary();
     editorStatus.textContent = "Template duplicated.";
@@ -2359,7 +2634,7 @@ function initTemplatesPage() {
       editorStatus.textContent = "Select a saved template before deleting it.";
       return;
     }
-    removeTemplate(selectedTemplateId);
+    if (!removeTemplate(selectedTemplateId)) { editorStatus.textContent = "Template could not be deleted. Browser storage is unavailable."; return; }
     clearEditor("Template deleted.");
     renderLibrary();
   });
@@ -2375,6 +2650,7 @@ function initTemplatesPage() {
   if (skuFields.saveBtn) {
     skuFields.saveBtn.addEventListener("click", () => {
       const settings = getSkuSettingsFromForm();
+      if (!settings) { skuFields.status.textContent = "SKU settings could not be saved. Browser storage is unavailable."; return; }
       renderSkuSettings();
       skuFields.status.textContent = `SKU settings saved. Next SKU: ${formatCustomSku(settings.nextNumber, settings)}.`;
     });
@@ -2382,18 +2658,17 @@ function initTemplatesPage() {
 
   if (skuFields.resetBtn) {
     skuFields.resetBtn.addEventListener("click", () => {
-      saveSkuSettings(DEFAULT_SKU_SETTINGS);
+      if (!saveSkuSettings(DEFAULT_SKU_SETTINGS)) { skuFields.status.textContent = "SKU settings could not be reset. Browser storage is unavailable."; return; }
       renderSkuSettings();
       skuFields.status.textContent = "SKU settings reset to the Listing Lab default sequence.";
     });
   }
 
-  [skuFields.prefix, skuFields.nextNumber, skuFields.digits].forEach((field) => {
+  [skuFields.nextNumber, skuFields.digits].forEach((field) => {
     if (!field) return;
     field.addEventListener("input", () => {
       const previewSettings = {
-        prefix: skuFields.prefix?.value || DEFAULT_SKU_SETTINGS.prefix,
-        nextNumber: skuFields.nextNumber?.value || DEFAULT_SKU_SETTINGS.nextNumber,
+          nextNumber: skuFields.nextNumber?.value || DEFAULT_SKU_SETTINGS.nextNumber,
         digits: skuFields.digits?.value || DEFAULT_SKU_SETTINGS.digits,
       };
       if (skuFields.preview) skuFields.preview.textContent = formatCustomSku(previewSettings.nextNumber, previewSettings);
@@ -2424,7 +2699,7 @@ function initFeaturesPage() {
   const items = [
     { label: "5 essential required inputs in Create Listing", ok: true },
     { label: "Formula pricing helper", ok: typeof getSuggestedRange === "function" },
-    { label: "eBay comps support", ok: ENABLE_LIVE_EBAY_COMPS || ENABLE_DEMO_EBAY_COMPS },
+    { label: "Market search and manual comps", ok: typeof buildResearchLinks === "function" },
     { label: "Smart templates workspace", ok: true },
     { label: "Local draft and listing storage", ok: typeof localStorage !== "undefined" },
     { label: "Dashboard export tools", ok: typeof exportCSV === "function" },
@@ -2451,7 +2726,7 @@ function initHowItWorksPage() {
     }
 
     const essentials = [
-      draft.itemName ? "Item Name" : null,
+      draft.itemName ? "Title" : null,
       draft.brand ? "Brand" : null,
       draft.category ? "Category" : null,
       draft.condition ? "Condition" : null,
@@ -2465,6 +2740,82 @@ function initHowItWorksPage() {
   renderDraft();
   const refreshBtn = $("#refreshHowDraftBtn");
   if (refreshBtn) refreshBtn.addEventListener("click", renderDraft);
+}
+
+function calculateResalePricing(values, analysisOverride) {
+  const keys = ["salePrice", "cogs", "shipping", "packaging", "platformFeePct", "paymentFeePct", "fixedFee",
+    "adCost", "targetProfit", "minimumProfit", "targetMarginPct", "offerRoomPct", "mileage", "mileageRate"];
+  const inputs = Object.fromEntries(keys.map((key) => [key, Number(values[key] ?? 0)]));
+  if (Object.values(inputs).some((value) => !Number.isFinite(value) || value < 0)) throw new Error("Enter valid nonnegative prices, costs and percentages.");
+  const feeRate = (inputs.platformFeePct + inputs.paymentFeePct) / 100;
+  const marginRate = inputs.targetMarginPct / 100;
+  const offerRate = inputs.offerRoomPct / 100;
+  if (feeRate >= 1 || marginRate >= 1 || feeRate + marginRate >= 1) throw new Error("Fees plus target net margin must total less than 100%.");
+  if (offerRate >= 1) throw new Error("Offer room must be less than 100%.");
+  const ceilMoney = (amount) => Math.ceil((amount - 1e-9) * 100) / 100;
+  const mileageCost = inputs.mileage * inputs.mileageRate;
+  const totalFixedCosts = inputs.cogs + inputs.shipping + inputs.packaging + inputs.fixedFee + inputs.adCost + mileageCost;
+  if (!Number.isFinite(totalFixedCosts)) throw new Error("The entered costs are too large to calculate.");
+  const breakEven = ceilMoney(totalFixedCosts / (1 - feeRate));
+  const minSale = ceilMoney((totalFixedCosts + inputs.minimumProfit) / (1 - feeRate));
+  const targetPrice = ceilMoney(Math.max(minSale, inputs.salePrice,
+    (totalFixedCosts + inputs.targetProfit) / (1 - feeRate), totalFixedCosts / (1 - feeRate - marginRate)));
+  const listPrice = ceilMoney(targetPrice / (1 - offerRate));
+  const analysisPrice = analysisOverride > 0 ? analysisOverride : inputs.salePrice || targetPrice;
+  const estimatedFees = analysisPrice * feeRate + inputs.fixedFee;
+  const estimatedTotalCost = totalFixedCosts + analysisPrice * feeRate;
+  const netProfit = analysisPrice - estimatedTotalCost;
+  if (![breakEven, minSale, targetPrice, listPrice, analysisPrice, estimatedTotalCost, netProfit].every(Number.isFinite)) {
+    throw new Error("The entered values are too large to calculate a valid price.");
+  }
+  return { inputs, feeRate, mileageCost, totalFixedCosts, breakEven, minSale, targetPrice, listPrice, analysisPrice,
+    estimatedFees, estimatedTotalCost, netProfit,
+    marginPct: analysisPrice > 0 ? netProfit / analysisPrice * 100 : null,
+    roiPct: inputs.cogs > 0 ? netProfit / inputs.cogs * 100 : null };
+}
+
+function readPricingSession(key) {
+  try { return safeJsonParse(sessionStorage.getItem(key), null); } catch { return null; }
+}
+
+function writePricingSession(key, value) {
+  try { sessionStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
+}
+
+const RESELLER_OVERVIEW_HEADERS = ["SKU #", "Location", "QR Code", "Photo", "Date Added", "Status", "Item Name", "Brand", "Size",
+  "Category", "Color", "Condition", "Material", "Purchase Price", "List Price", "Min Sale", "Target Price", "Sold Price", "Date Sold",
+  "Platform Sold On", "Shipping Cost", "Platform Fee", "Mileage", "Mileage Cost", "Total Cost", "Profit", "Receipts", "Notes"];
+
+function resellerSpreadsheetRow(listing) {
+  const plan = listing.pricingPlan;
+  const inputs = plan?.inputs || {};
+  const sale = Number(listing.soldPrice);
+  const hasSale = Number.isFinite(sale) && sale > 0;
+  const fees = hasSale ? (listing.platformFee ?? (plan ? sale * plan.feeRate + inputs.fixedFee : "")) : "";
+  const totalCost = hasSale && plan ? plan.totalFixedCosts - inputs.fixedFee + Number(fees) : "";
+  return {
+    "SKU #": listing.sku || getListingSku(listing), "Location": listing.location || "", "QR Code": listing.qrCode || "", "Photo": listing.photoUrl || "",
+    "Date Added": String(listing.createdAt || "").slice(0, 10), "Status": prettyStatus(listing.status), "Item Name": buildListingTitle(listing),
+    "Brand": listing.brand || "", "Size": listing.size || "", "Category": listing.category ? prettyCategory(listing.category) : "",
+    "Color": listing.color || "", "Condition": listing.condition ? prettyCondition(listing.condition) : "", "Material": listing.material || "",
+    "Purchase Price": inputs.cogs ?? listing.purchasePrice ?? "", "List Price": Number(listing.price) > 0 ? Number(listing.price) : "",
+    "Min Sale": plan?.minSale ?? "", "Target Price": plan?.targetPrice ?? "", "Sold Price": hasSale ? sale : "",
+    "Date Sold": listing.soldAt ? String(listing.soldAt).slice(0, 10) : "", "Platform Sold On": listing.platformSoldOn || "",
+    "Shipping Cost": inputs.shipping ?? listing.shippingCost ?? "", "Platform Fee": fees, "Mileage": inputs.mileage ?? "",
+    "Mileage Cost": plan?.mileageCost ?? "", "Total Cost": totalCost, "Profit": hasSale && totalCost !== "" ? sale - totalCost : "",
+    "Receipts": listing.receipts || listing.receiptUrl || "", "Notes": listing.notes || "",
+  };
+}
+
+function resellerSpreadsheetCSV(listings) {
+  const cell = (value) => {
+    const text = String(value ?? "");
+    return `"${(/^[=+@-]/.test(text) ? "'" + text : text).replaceAll('"', '""')}"`;
+  };
+  return [RESELLER_OVERVIEW_HEADERS.map(cell).join(","), ...listings.map((listing) => {
+    const row = resellerSpreadsheetRow(listing);
+    return RESELLER_OVERVIEW_HEADERS.map((header) => cell(row[header])).join(",");
+  })].join("\r\n");
 }
 
 function initPricingPage() {
@@ -2489,59 +2840,65 @@ function initPricingPage() {
     $("#pricingEstimateSuggested").textContent = `Suggested list price: $${suggested.toFixed(2)}`;
   });
 
-  const toNum = (id) => Number($(id)?.value || 0);
-  const fmtMoney = (v) => `$${Number(v || 0).toFixed(2)}`;
-  const fmtPct = (v) => `${Number(v || 0).toFixed(2)}%`;
-
-  const calcBtn = $("#calcProfitBtn");
-  if (!calcBtn) return;
-
-  calcBtn.addEventListener("click", () => {
-    const salePrice = toNum("#calcSalePrice");
-    const cogs = toNum("#calcCogs");
-    const shipping = toNum("#calcShippingCost");
-    const packaging = toNum("#calcPackagingCost");
-    const platformPct = toNum("#calcPlatformFeePct") / 100;
-    const paymentPct = toNum("#calcPaymentFeePct") / 100;
-    const fixedFee = toNum("#calcFixedFee");
-    const adCost = toNum("#calcAdCost");
-    const targetProfit = toNum("#calcTargetProfit");
-
-    if (!Number.isFinite(salePrice) || salePrice <= 0) {
-      $("#calcStatus").textContent = "Enter a valid planned sale price to calculate profit.";
+  const inputIds = {
+    salePrice: "calcSalePrice", cogs: "calcCogs", shipping: "calcShippingCost", packaging: "calcPackagingCost",
+    platformFeePct: "calcPlatformFeePct", paymentFeePct: "calcPaymentFeePct", fixedFee: "calcFixedFee", adCost: "calcAdCost",
+    targetProfit: "calcTargetProfit", minimumProfit: "calcMinimumProfit", targetMarginPct: "calcTargetMargin",
+    offerRoomPct: "calcOfferRoom", mileage: "calcMileage", mileageRate: "calcMileageRate",
+  };
+  const context = readPricingSession("listingLab:pricingContext:v1");
+  const contextToken = new URLSearchParams(window.location.search).get("context");
+  const sourceDraft = contextToken && context?.token === contextToken ? context.draft : null;
+  if (sourceDraft) {
+    $("#pricingBrand").value = sourceDraft.brand || "";
+    $("#pricingCategory").value = sourceDraft.category || "";
+    $("#pricingCondition").value = sourceDraft.condition || "";
+    const inputs = sourceDraft.pricingPlan?.inputs || { salePrice: sourceDraft.price || "" };
+    Object.entries(inputIds).forEach(([key, id]) => { if (inputs[key] !== undefined) $("#" + id).value = String(inputs[key]); });
+    $("#pricingItemContext").textContent = `Pricing: ${sourceDraft.itemName || sourceDraft.brand || "current listing"}`;
+  }
+  let result = null;
+  const fmtMoney = (value) => `$${Number(value).toFixed(2)}`;
+  const outputIds = ["calcNetProfit", "calcMargin", "calcRoi", "calcBreakEven", "calcTargetPrice", "calcListingPrice", "calcMinSale"];
+  const invalidate = () => {
+    result = null;
+    $("#applyPricingToListingBtn").disabled = true;
+    outputIds.forEach((id) => { $("#" + id).textContent = "—"; });
+    $("#calcStatus").textContent = "";
+  };
+  Object.values(inputIds).forEach((id) => $("#" + id).addEventListener("input", invalidate));
+  $("#calcProfitBtn").addEventListener("click", () => {
+    try {
+      const values = Object.fromEntries(Object.entries(inputIds).map(([key, id]) => [key, $("#" + id).value || 0]));
+      result = calculateResalePricing(values);
+      if (!(result.listPrice > 0)) throw new Error("Enter item costs, an expected sale price or a target profit to calculate pricing.");
+      $("#calcNetProfit").textContent = fmtMoney(result.netProfit);
+      $("#calcMargin").textContent = result.marginPct === null ? "n/a" : `${result.marginPct.toFixed(2)}%`;
+      $("#calcRoi").textContent = result.roiPct === null ? "n/a" : `${result.roiPct.toFixed(2)}%`;
+      $("#calcBreakEven").textContent = fmtMoney(result.breakEven);
+      $("#calcTargetPrice").textContent = fmtMoney(result.targetPrice);
+      $("#calcListingPrice").textContent = fmtMoney(result.listPrice);
+      $("#calcMinSale").textContent = fmtMoney(result.minSale);
+      $("#calcStatus").textContent = result.analysisPrice < result.minSale
+        ? "Your planned sale price is below the minimum sale price." : `Profit and margin shown at a sale price of ${fmtMoney(result.analysisPrice)}.`;
+      $("#applyPricingToListingBtn").disabled = false;
+    } catch (error) { invalidate(); $("#calcStatus").textContent = error.message; }
+  });
+  $("#applyPricingToListingBtn").addEventListener("click", () => {
+    if (!result) return;
+    const token = uid();
+    const draft = {
+      ...(sourceDraft || { __draftId: uid(), brand: $("#pricingBrand").value.trim(), category: $("#pricingCategory").value,
+        condition: $("#pricingCondition").value, status: "draft" }),
+      price: result.listPrice, pricingPlan: result,
+    };
+    if (!saveDraft(draft) || !writePricingSession("listingLab:pricingTransfer:v1", { token, draft })) {
+      $("#calcStatus").textContent = "Could not transfer pricing. Your calculator results are still here; check browser storage.";
       return;
     }
-
-    const variablePct = platformPct + paymentPct;
-    const totalFixedCosts = cogs + shipping + packaging + fixedFee + adCost;
-    const pctFees = salePrice * variablePct;
-    const netProfit = salePrice - pctFees - totalFixedCosts;
-    const marginPct = salePrice > 0 ? (netProfit / salePrice) * 100 : 0;
-    const roiPct = cogs > 0 ? (netProfit / cogs) * 100 : 0;
-
-    const breakEvenDenominator = 1 - variablePct;
-    const breakEven = breakEvenDenominator > 0
-      ? totalFixedCosts / breakEvenDenominator
-      : NaN;
-
-    const targetPrice = breakEvenDenominator > 0
-      ? (totalFixedCosts + targetProfit) / breakEvenDenominator
-      : NaN;
-
-    $("#calcNetProfit").textContent = fmtMoney(netProfit);
-    $("#calcMargin").textContent = fmtPct(marginPct);
-    $("#calcRoi").textContent = Number.isFinite(roiPct) ? fmtPct(roiPct) : "n/a";
-    $("#calcBreakEven").textContent = Number.isFinite(breakEven) ? fmtMoney(breakEven) : "n/a";
-    $("#calcTargetPrice").textContent = Number.isFinite(targetPrice) ? fmtMoney(targetPrice) : "n/a";
-
-    if (netProfit > 0) {
-      $("#calcStatus").textContent = "Profit calculation complete.";
-    } else if (netProfit === 0) {
-      $("#calcStatus").textContent = "You are currently at break-even.";
-    } else {
-      $("#calcStatus").textContent = "Current inputs produce a loss. Adjust price or costs.";
-    }
+    window.location.href = `new-listing.html?pricing=${encodeURIComponent(token)}`;
   });
+  if (sourceDraft?.pricingPlan) $("#calcProfitBtn").click();
 }
 
 function initIntegrationsPage() {
@@ -2678,7 +3035,7 @@ function initDashboardPage() {
     if (searchTerm) {
       listings = listings.filter((listing) => {
         const haystack = [
-          listing.itemName,
+          buildListingTitle(listing), listing.styleModel, listing.productType, listing.itemType, listing.keyFeatures,
           listing.brand,
           prettyCategory(listing.category),
           getListingSku(listing),
@@ -2752,10 +3109,10 @@ function initDashboardPage() {
       const tr = document.createElement("tr");
       tr.className = "dashboard-row";
       tr.innerHTML = `
-        <td><input class="form-check-input" type="checkbox" data-select-id="${escapeHtml(listing.id)}" aria-label="Select listing ${escapeHtml(listing.itemName || "Untitled")}" /></td>
+        <td><input class="form-check-input" type="checkbox" data-select-id="${escapeHtml(listing.id)}" aria-label="Select listing ${escapeHtml(buildListingTitle(listing))}" /></td>
         <td>
           <div class="dashboard-item-cell">
-            <a class="dashboard-item-title" href="listing.html?id=${encodeURIComponent(listing.id)}">${escapeHtml(listing.itemName || "Untitled")}</a>
+            <a class="dashboard-item-title" href="listing.html?id=${encodeURIComponent(listing.id)}">${escapeHtml(buildListingTitle(listing))}</a>
             <div class="dashboard-item-meta">${escapeHtml(listing.brand || "No brand")} · ${escapeHtml(prettyCondition(listing.condition))}</div>
             <div class="dashboard-item-note">${escapeHtml(notePreview || "No notes yet.")}</div>
           </div>
@@ -2765,7 +3122,7 @@ function initDashboardPage() {
         <td>
           <div class="dashboard-status-cell">
             ${getStatusBadge(statusValue)}
-            <select class="form-select form-select-sm" data-status-id="${escapeHtml(listing.id)}" aria-label="Quick status change for ${escapeHtml(listing.itemName || "Untitled")}">
+            <select class="form-select form-select-sm" data-status-id="${escapeHtml(listing.id)}" aria-label="Quick status change for ${escapeHtml(buildListingTitle(listing))}">
               <option value="draft" ${statusValue === "draft" ? "selected" : ""}>Draft</option>
               <option value="ready" ${statusValue === "ready" ? "selected" : ""}>Ready to List</option>
               <option value="listed" ${statusValue === "listed" ? "selected" : ""}>Listed</option>
@@ -2781,7 +3138,7 @@ function initDashboardPage() {
             <a class="btn btn-sm btn-outline-secondary" href="listing.html?id=${encodeURIComponent(listing.id)}">View</a>
             <button class="btn btn-sm btn-outline-secondary" data-edit="${escapeHtml(listing.id)}" type="button">Edit</button>
             <button class="btn btn-sm btn-outline-secondary" data-dup="${escapeHtml(listing.id)}" type="button">Duplicate</button>
-            <button class="btn btn-sm btn-outline-danger" data-del="${escapeHtml(listing.id)}" type="button" aria-label="Delete ${escapeHtml(listing.itemName || "Untitled")}">Delete</button>
+            <button class="btn btn-sm btn-outline-danger" data-del="${escapeHtml(listing.id)}" type="button" aria-label="Delete ${escapeHtml(buildListingTitle(listing))}">Delete</button>
           </div>
         </td>
       `;
@@ -2790,16 +3147,17 @@ function initDashboardPage() {
 
       tr.querySelector("[data-status-id]").addEventListener("change", (event) => {
         const nextStatus = normalizeStatus(event.target.value);
-        updateListing(listing.id, { status: nextStatus });
-        dashboardStatus.textContent = `Status updated to ${prettyStatus(nextStatus)}.`;
+        const saved = updateListing(listing.id, { status: nextStatus });
+        dashboardStatus.textContent = saved ? `Status updated to ${prettyStatus(nextStatus)}.` : "Status could not be saved. Browser storage is unavailable.";
         render();
       });
 
       tr.querySelector("[data-edit]").addEventListener("click", () => {
-        saveDraft({
+        const saved = saveDraft({
           ...listing,
           __editingId: listing.id,
         });
+        if (!saved) { dashboardStatus.textContent = "Could not open this listing for editing. Browser storage is unavailable."; return; }
         window.location.href = "new-listing.html";
       });
 
@@ -2811,8 +3169,8 @@ function initDashboardPage() {
 
       tr.querySelector("[data-del]").addEventListener("click", () => {
         if (!window.confirm(`Delete \"${listing.itemName || "this listing"}\"?`)) return;
-        removeListing(listing.id);
-        dashboardStatus.textContent = "Listing deleted.";
+        const saved = removeListing(listing.id);
+        dashboardStatus.textContent = saved ? "Listing deleted." : "Listing could not be deleted. Browser storage is unavailable.";
         render();
       });
 
@@ -2822,13 +3180,61 @@ function initDashboardPage() {
     syncSelectionMeta();
   }
 
+  $("#inventoryStorageOrigin").textContent = `Saved in this browser at ${window.location.origin}.`;
+  // An additive snapshot protects existing records when this dashboard first opens.
+  preserveInventoryBackup();
+  $("#saveInventoryBackupBtn").addEventListener("click", () => {
+    const listings = getListings();
+    if (!listings.length) { dashboardStatus.textContent = "No saved listings at this address to back up."; return; }
+    exportJSON(listings);
+  });
+  $("#importInventoryBackupBtn").addEventListener("click", () => $("#inventoryBackupFile").click());
+  $("#inventoryBackupFile").addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 5 * 1024 * 1024) throw new Error("Choose an inventory JSON backup smaller than 5 MB.");
+      const incoming = JSON.parse(await file.text());
+      if (!Array.isArray(incoming) || !incoming.length || incoming.some((item) => !item || typeof item.id !== "string" || (!item.itemName && !item.brand))) {
+        throw new Error("Choose an Inventory Backup JSON file, rather than a platform form export.");
+      }
+      const merged = mergeInventoryRecords(getListings(), incoming);
+      if (merged.added && !saveListings(merged.listings)) throw new Error("Backup could not be imported. Existing inventory was kept unchanged.");
+      render();
+      dashboardStatus.textContent = `${merged.added} listings imported. ${merged.skipped} existing or conflicting records skipped. Current records were preserved.`;
+    } catch (error) {
+      dashboardStatus.textContent = error instanceof SyntaxError ? "This file is not valid JSON. Existing inventory was kept unchanged." : error.message;
+    } finally { event.target.value = ""; }
+  });
+  $("#recoverInventoryBtn").addEventListener("click", () => {
+    const merged = mergeInventoryRecords(getListings(), getRecoverableInventory());
+    if (!merged.added) {
+      dashboardStatus.textContent = "No additional saved listings found at this address. Open your original site address to export its Inventory Backup.";
+      return;
+    }
+    if (!saveListings(merged.listings)) { dashboardStatus.textContent = "Recovery could not be saved. Existing inventory was kept unchanged."; return; }
+    render();
+    dashboardStatus.textContent = `${merged.added} listings recovered. Existing records were preserved.`;
+  });
+
+  $("#dashboardExportPlatform").addEventListener("change", () => {
+    $("#exportSpreadsheetBtn").hidden = $("#dashboardExportPlatform").value !== "spreadsheet";
+  });
+  $("#exportSpreadsheetBtn").addEventListener("click", () => {
+    const selectedIds = new Set(getSelectedListingIds());
+    const listings = selectedIds.size ? getAllListings().filter((item) => selectedIds.has(item.id)) : getAllListings();
+    if (!listings.length) { dashboardStatus.textContent = "No saved inventory to export."; return; }
+    exportResellerSpreadsheet(listings);
+    dashboardStatus.textContent = "Spreadsheet exported with Overview and Pricing Inputs. Sold amounts remain blank until recorded.";
+  });
+
   $("#exportBtn").addEventListener("click", () => {
     const listings = getAllListings();
     if (!listings.length) {
       dashboardStatus.textContent = "No saved inventory to export.";
       return;
     }
-    exportCSV(listings);
+    exportCSV(listings, $("#dashboardExportPlatform").value);
     dashboardStatus.textContent = "All inventory exported as CSV.";
   });
 
@@ -2840,7 +3246,7 @@ function initDashboardPage() {
         dashboardStatus.textContent = "No saved inventory to export.";
         return;
       }
-      exportJSON(listings);
+      exportJSON(listings, $("#dashboardExportPlatform").value);
       dashboardStatus.textContent = "All inventory exported as JSON.";
     });
   }
@@ -2854,7 +3260,7 @@ function initDashboardPage() {
         dashboardStatus.textContent = "Select at least 1 visible listing to export.";
         return;
       }
-      exportCSV(selected);
+      exportCSV(selected, $("#dashboardExportPlatform").value);
       dashboardStatus.textContent = "Selected inventory exported as CSV.";
     });
   }
@@ -2868,7 +3274,7 @@ function initDashboardPage() {
         dashboardStatus.textContent = "Select at least 1 visible listing to export.";
         return;
       }
-      exportJSON(selected);
+      exportJSON(selected, $("#dashboardExportPlatform").value);
       dashboardStatus.textContent = "Selected inventory exported as JSON.";
     });
   }
@@ -2928,7 +3334,7 @@ function initListingDetailPage() {
     return;
   }
 
-  titleEl.textContent = listing.itemName || "Listing";
+  titleEl.textContent = buildListingTitle(listing);
   metaEl.textContent = `${listing.brand || "No brand"} | ${prettyCategory(listing.category)} | ${prettyCondition(listing.condition)} | ${prettyStatus(listing.status)} | $${Number(listing.price || 0).toFixed(2)} | ${formatDate(listing.createdAt)}`;
   exportEl.textContent = buildExportSummary(listing);
 
@@ -2939,7 +3345,7 @@ function initListingDetailPage() {
 
   $("#detailDeleteBtn").addEventListener("click", () => {
     if (!window.confirm(`Delete \"${listing.itemName || "this listing"}\"?`)) return;
-    removeListing(listing.id);
+    if (!removeListing(listing.id)) { msgEl.textContent = "Listing could not be deleted. Browser storage is unavailable."; return; }
     window.location.href = "dashboard.html";
   });
 }

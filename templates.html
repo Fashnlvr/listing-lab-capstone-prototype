@@ -40,7 +40,7 @@
         <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
           <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
           <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link" href="new-listing.html">Create Listing</a></li>
+          <li class="nav-item"><a class="nav-link" href="new-listing.html?new=1">Create Listing</a></li>
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle menu-toggle active" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Open more pages" title="More pages"><span class="navbar-toggler-icon" aria-hidden="true"></span></a>
             <ul class="dropdown-menu dropdown-menu-end">
@@ -84,20 +84,16 @@
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
                 <div>
                   <p class="preview-section-label mb-1">Custom SKU System</p>
-                  <p class="text-secondary mb-0">Set the prefix and numbering style you want Listing Lab to apply to new saved listings.</p>
+                  <p class="text-secondary mb-0">Set the next number and digit count for automatic SKUs. Edit an individual SKU on its listing form.</p>
                 </div>
-                <span class="dashboard-sku" id="skuPreviewBadge">LL-0001</span>
+                <span class="dashboard-sku" id="skuPreviewBadge">0001</span>
               </div>
               <div class="row g-3">
-                <div class="col-12 col-md-4">
-                  <label class="form-label" for="skuPrefix">SKU Prefix</label>
-                  <input class="form-control" id="skuPrefix" placeholder="e.g., JL" />
-                </div>
-                <div class="col-6 col-md-4">
+                <div class="col-6">
                   <label class="form-label" for="skuStartNumber">Next Number</label>
                   <input class="form-control" id="skuStartNumber" type="number" min="1" step="1" placeholder="1" />
                 </div>
-                <div class="col-6 col-md-4">
+                <div class="col-6">
                   <label class="form-label" for="skuDigits">Digits</label>
                   <input class="form-control" id="skuDigits" type="number" min="1" max="8" step="1" placeholder="4" />
                 </div>
@@ -226,12 +222,12 @@
             </span>
           </p>
           <p class="small text-secondary mb-0">Local resale prep workspace for pricing, listing copy, and inventory tracking.</p>
-          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Create a Listing</a>
+          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html?new=1">Create a Listing</a>
         </div>
         <div class="col-6 col-lg-2">
           <p class="small text-uppercase text-secondary mb-2">Product</p>
           <ul class="list-unstyled mb-0">
-            <li><a href="new-listing.html">Create Listing</a></li>
+            <li><a href="new-listing.html?new=1">Create Listing</a></li>
             <li><a href="dashboard.html">Dashboard</a></li>
             <li><a href="pricing.html">Pricing Calculator</a></li>
           </ul>
@@ -267,7 +263,7 @@
       <i class="bi bi-box-seam" aria-hidden="true"></i>
       <span>Home</span>
     </a>
-    <a class="mobile-bottom-nav__item mobile-bottom-nav__item--create" href="new-listing.html">
+    <a class="mobile-bottom-nav__item mobile-bottom-nav__item--create" href="new-listing.html?new=1">
       <i class="bi bi-stars" aria-hidden="true"></i>
       <span>Create</span>
     </a>

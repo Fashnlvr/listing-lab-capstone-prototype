@@ -71,6 +71,7 @@ web_modules/
 !.env.example
 __pycache__/
 *.pyc
+.venv/
 .vercel/
 
 # parcel-bundler cache (https://parceljs.org/)

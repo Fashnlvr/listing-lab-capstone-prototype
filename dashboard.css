@@ -1,0 +1,95 @@
+/* Preserve the original dashboard presentation without changing other pages. */
+html:has(body.dashboard-page) {
+  font-size: 100%;
+}
+
+.dashboard-page main,
+.dashboard-page > footer {
+  --ll-content-text-step: 0pt;
+  font-size: 1rem;
+}
+
+.dashboard-page .dashboard-header h1.h3 {
+  font-size: clamp(1.95rem, 1.45rem + 0.95vw, 2.45rem);
+  color: var(--ll-accent) !important;
+}
+
+.dashboard-page .dashboard-intro {
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--ll-line);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.dashboard-page .form-label {
+  font-size: 1rem !important;
+}
+
+.dashboard-page .dashboard-item-title {
+  color: var(--ll-text) !important;
+}
+
+.dashboard-page .table thead th,
+.dashboard-page footer .text-uppercase {
+  color: var(--ll-muted) !important;
+}
+
+.dashboard-page .btn-dark,
+.dashboard-page .btn-primary {
+  background: var(--ll-accent) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+
+.dashboard-page .btn-dark:hover,
+.dashboard-page .btn-dark:focus,
+.dashboard-page .btn-primary:hover,
+.dashboard-page .btn-primary:focus {
+  background: #431228 !important;
+}
+
+.dashboard-page .btn-outline-secondary,
+.dashboard-page .btn-outline-dark,
+.dashboard-page .btn-outline-primary {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: var(--ll-line-strong) !important;
+  color: var(--ll-text) !important;
+}
+
+.dashboard-page .btn-outline-secondary:hover,
+.dashboard-page .btn-outline-secondary:focus,
+.dashboard-page .btn-outline-dark:hover,
+.dashboard-page .btn-outline-dark:focus,
+.dashboard-page .btn-outline-primary:hover,
+.dashboard-page .btn-outline-primary:focus {
+  background: var(--ll-accent-soft) !important;
+  border-color: rgba(74, 21, 56, 0.24) !important;
+  color: var(--ll-accent) !important;
+}
+
+.dashboard-page .btn-outline-danger {
+  background: transparent !important;
+  border-color: rgba(157, 49, 80, 0.22) !important;
+  color: var(--ll-danger) !important;
+}
+
+.dashboard-page .btn-outline-danger:hover,
+.dashboard-page .btn-outline-danger:focus {
+  background: rgba(157, 49, 80, 0.08) !important;
+  border-color: rgba(157, 49, 80, 0.3) !important;
+  color: #7f2240 !important;
+}
+
+.dashboard-page .navbar-toggler {
+  background: transparent !important;
+  border-color: var(--ll-line) !important;
+  color: var(--ll-text) !important;
+}
+
+.dashboard-page .navbar-toggler .navbar-toggler-icon {
+  filter: none;
+}
+
+.dashboard-page .badge.text-bg-dark {
+  background: linear-gradient(135deg, #5a1d42 0%, #43122f 100%) !important;
+}

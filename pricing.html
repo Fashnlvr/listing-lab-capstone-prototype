@@ -40,7 +40,7 @@
         <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
           <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
           <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link" href="new-listing.html">Create Listing</a></li>
+          <li class="nav-item"><a class="nav-link" href="new-listing.html?new=1">Create Listing</a></li>
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle menu-toggle active" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Open more pages" title="More pages"><span class="navbar-toggler-icon" aria-hidden="true"></span></a>
             <ul class="dropdown-menu dropdown-menu-end">
@@ -75,19 +75,25 @@
           <div class="col-12 col-md-4">
             <label class="form-label" for="pricingCategory">Category</label>
             <select class="form-select" id="pricingCategory">
-              <option value="">Choose category</option>
-              <option value="tops">Tops</option>
-              <option value="bottoms">Bottoms</option>
-              <option value="dresses">Dresses</option>
+              <option value="">Choose the item type</option>
               <option value="shoes">Shoes</option>
-              <option value="bags">Bags</option>
-              <option value="outerwear">Outerwear</option>
+              <option value="bags">Handbags &amp; Bags</option>
+              <option value="tops">Tops &amp; Sweaters</option>
+              <option value="bottoms">Pants &amp; Jeans</option>
+              <option value="shorts">Shorts</option>
+              <option value="skirts">Skirts</option>
+              <option value="dresses">Dresses &amp; Jumpsuits</option>
+              <option value="outerwear">Jackets, Coats &amp; Blazers</option>
+              <option value="activewear">Activewear &amp; Swimwear</option>
+              <option value="jewelry">Jewelry &amp; Watches</option>
+              <option value="accessories">Accessories</option>
+              <option value="other">Other / Miscellaneous</option>
             </select>
           </div>
           <div class="col-12 col-md-4">
             <label class="form-label" for="pricingCondition">Condition</label>
             <select class="form-select" id="pricingCondition">
-              <option value="">Choose condition</option>
+              <option value="">Choose current condition</option>
               <option value="new">New</option>
               <option value="like-new">Like New</option>
               <option value="good">Good</option>
@@ -110,13 +116,14 @@
       <div class="card-body">
         <h2 class="h5">Reseller Profit Calculator</h2>
         <p class="text-secondary small mb-3">
-          Estimate net profit, margin, ROI, and break-even price before listing.
+          Calculate list price, minimum sale and target price after costs, fees and your margin.
         </p>
 
+        <p id="pricingItemContext" class="small text-secondary mb-2"></p>
         <div class="row g-3">
           <div class="col-12 col-md-4">
             <label class="form-label" for="calcSalePrice">Planned Sale Price ($)</label>
-            <input class="form-control" id="calcSalePrice" type="number" min="0" step="0.01" placeholder="e.g., 42.00" />
+            <input class="form-control" id="calcSalePrice" type="number" min="0" step="0.01" placeholder="Expected sale price, if known" />
           </div>
           <div class="col-12 col-md-4">
             <label class="form-label" for="calcCogs">Cost of Goods (COGS) ($)</label>
@@ -150,19 +157,42 @@
             <label class="form-label" for="calcTargetProfit">Target Profit ($)</label>
             <input class="form-control" id="calcTargetProfit" type="number" min="0" step="0.01" placeholder="e.g., 15.00" />
           </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label" for="calcMinimumProfit">Minimum Profit ($)</label>
+            <input class="form-control" id="calcMinimumProfit" type="number" min="0" step="0.01" placeholder="e.g., 5.00" />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label" for="calcTargetMargin">Target Net Margin (%)</label>
+            <input class="form-control" id="calcTargetMargin" type="number" min="0" step="0.1" placeholder="e.g., 30" />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label" for="calcOfferRoom">Room for Offers (%)</label>
+            <input class="form-control" id="calcOfferRoom" type="number" min="0" step="0.1" placeholder="e.g., 20" />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label" for="calcMileage">Mileage</label>
+            <input class="form-control" id="calcMileage" type="number" min="0" step="0.1" placeholder="e.g., 10" />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label" for="calcMileageRate">Cost per Mile ($)</label>
+            <input class="form-control" id="calcMileageRate" type="number" min="0" step="0.01" placeholder="Your rate, e.g., 0.70" />
+          </div>
         </div>
 
         <div class="d-flex flex-wrap gap-2 mt-3">
           <button class="btn btn-dark" id="calcProfitBtn" type="button">Calculate Profit</button>
+          <button class="btn btn-outline-secondary" id="applyPricingToListingBtn" type="button" disabled>Apply Pricing to Listing</button>
         </div>
 
         <p id="calcStatus" class="small text-secondary mt-3 mb-2" role="status" aria-live="polite"></p>
         <div class="row g-2">
+          <div class="col-12 col-md-4"><div class="border rounded p-2 small">List Price: <strong id="calcListingPrice">—</strong></div></div>
+          <div class="col-12 col-md-4"><div class="border rounded p-2 small">Min Sale: <strong id="calcMinSale">—</strong></div></div>
+          <div class="col-12 col-md-4"><div class="border rounded p-2 small">Target Price: <strong id="calcTargetPrice">—</strong></div></div>
           <div class="col-12 col-md-6"><div class="border rounded p-2 small">Net Profit: <strong id="calcNetProfit">$0.00</strong></div></div>
           <div class="col-12 col-md-6"><div class="border rounded p-2 small">Profit Margin: <strong id="calcMargin">0.00%</strong></div></div>
           <div class="col-12 col-md-6"><div class="border rounded p-2 small">ROI on COGS: <strong id="calcRoi">0.00%</strong></div></div>
           <div class="col-12 col-md-6"><div class="border rounded p-2 small">Break-Even Price: <strong id="calcBreakEven">$0.00</strong></div></div>
-          <div class="col-12"><div class="border rounded p-2 small">Price for Target Profit: <strong id="calcTargetPrice">$0.00</strong></div></div>
         </div>
       </div>
     </section>
@@ -178,12 +208,12 @@
             </span>
           </p>
           <p class="small text-secondary mb-0">Local resale prep workspace for pricing, listing copy, and inventory tracking.</p>
-          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Create a Listing</a>
+          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html?new=1">Create a Listing</a>
         </div>
         <div class="col-6 col-lg-2">
           <p class="small text-uppercase text-secondary mb-2">Product</p>
           <ul class="list-unstyled mb-0">
-            <li><a href="new-listing.html">Create Listing</a></li>
+            <li><a href="new-listing.html?new=1">Create Listing</a></li>
             <li><a href="dashboard.html">Dashboard</a></li>
             <li><a href="pricing.html">Pricing Calculator</a></li>
           </ul>
@@ -219,7 +249,7 @@
       <i class="bi bi-box-seam" aria-hidden="true"></i>
       <span>Home</span>
     </a>
-    <a class="mobile-bottom-nav__item mobile-bottom-nav__item--create" href="new-listing.html">
+    <a class="mobile-bottom-nav__item mobile-bottom-nav__item--create" href="new-listing.html?new=1">
       <i class="bi bi-stars" aria-hidden="true"></i>
       <span>Create</span>
     </a>

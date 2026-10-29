@@ -40,7 +40,7 @@
         <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
           <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
           <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link active" aria-current="page" href="new-listing.html">Create Listing</a></li>
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="new-listing.html?new=1">Create Listing</a></li>
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle menu-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Open more pages" title="More pages"><span class="navbar-toggler-icon" aria-hidden="true"></span></a>
             <ul class="dropdown-menu dropdown-menu-end">
@@ -72,7 +72,7 @@
 
             <form id="listingForm" novalidate>
               <div class="mb-3">
-                <label class="form-label" for="itemName">Color <span class="text-danger">*</span></label>
+                <label class="form-label" for="itemName">Title <span class="text-danger">*</span></label>
                 <input class="form-control" name="itemName" id="itemName" placeholder="Brand + Product Type + Style/Model + Key Features + Color + Gender + Size" required />
               </div>
 
@@ -99,6 +99,10 @@
                     <option value="accessories">Accessories</option>
                     <option value="other">Other / Miscellaneous</option>
                   </select>
+                  <div class="mt-3">
+                    <label class="form-label" for="color">Color</label>
+                    <input class="form-control" id="color" name="color" placeholder="e.g., blue, black, multicolor" />
+                  </div>
                 </div>
                 <div class="col-12 col-md-6">
                   <label class="form-label" for="condition">Condition <span class="text-danger">*</span></label>
@@ -133,8 +137,48 @@
                 <input class="form-control" id="customItemType" name="itemType" placeholder="Describe your item type" />
               </div>
 
-              <div class="mb-3">
-                <label class="form-label" for="templateSelect">Templates</label>
+              <details class="mb-3">
+                <summary class="form-label">Additional Details</summary>
+                <fieldset class="mt-3">
+                  <legend class="visually-hidden">Additional Details</legend>
+                <p class="form-text">Use the exact product type, label information and confirmed features. Leave unknown details blank.</p>
+                <div class="row g-3">
+                  <div class="col-12 col-md-6">
+                    <label class="form-label" for="productType">Exact Product Type</label>
+                    <input class="form-control" id="productType" name="productType" placeholder="e.g., ankle boots, cardigan, straight-leg jeans" />
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label" for="styleModel">Style / Model</label>
+                    <input class="form-control" id="styleModel" name="styleModel" placeholder="e.g., 501 Original, Air Max 90" />
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label" for="keyFeatures">Key Features / Style Terms</label>
+                    <input class="form-control" id="keyFeatures" name="keyFeatures" placeholder="Confirmed details, separated by commas: high rise, wide leg" />
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label" for="material">Material</label>
+                    <input class="form-control" id="material" name="material" placeholder="e.g., 100% cotton, leather — check the label" />
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label" for="gender">Gender / Department</label>
+                    <input class="form-control" id="gender" name="gender" placeholder="e.g., Women, Men, Unisex, Kids" />
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label" for="size">Tagged Size</label>
+                    <input class="form-control" id="size" name="size" placeholder="e.g., M, US 8, W30 L32" />
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label" for="itemSku">SKU</label>
+                    <input class="form-control" id="itemSku" name="sku" maxlength="80" placeholder="Auto: 0001" aria-describedby="itemSkuHelp" />
+                    <div class="form-text" id="itemSkuHelp">Edit this item's SKU, or leave blank to auto-number.</div>
+                  </div>
+                </div>
+                </fieldset>
+              </details>
+
+              <details class="mb-3" id="templatesSection" open>
+                <summary class="form-label">Templates</summary>
+                <label class="visually-hidden" for="templateSelect">Choose template</label>
                 <div class="row g-2 mb-2">
                   <div class="col-12 col-lg-6">
                     <select class="form-select" id="templateSelect">
@@ -198,35 +242,44 @@
                     </div>
                   </div>
                 </div>
-              </div>
+              </details>
 
               <div class="mb-3">
                 <label class="form-label" for="price">Price <span class="text-danger">*</span></label>
                 <input class="form-control" name="price" id="price" type="number" min="0" step="0.01" placeholder="Enter your listing price (e.g., 34.99)" required />
                 <div class="form-text">
-                  Suggested Range: <span id="suggestedRange">-</span>
-                  <span id="priceCheck" class="ms-1"></span>
+                  <a href="pricing.html" id="openPricingCalculatorBtn">Pricing Calculator</a>
                 </div>
               </div>
 
-              <div class="card bg-light border-0 listing-subpanel mb-3">
-                <div class="card-body py-3">
-                  <p class="small text-secondary mb-2">
-                    Research eBay and Poshmark listing leads, confirm sold prices, and select relevant market wording for Keywords and Tags. Without verified comps, pricing uses a local estimate.
-                  </p>
-                  <div class="row g-2 mb-3">
-                    <div class="col-12 col-lg-4 d-grid">
-                      <button class="btn btn-outline-secondary h-100" id="applyFormulaPriceBtn" type="button">Apply Formula Price</button>
+              <div class="form-text mb-3" id="listingPricingSummary" hidden></div>
+
+              <h2 class="form-label fs-6" id="researchLabel">Research</h2>
+              <div class="card bg-light border-0 listing-subpanel pricing-helper mb-3" role="region" aria-labelledby="researchLabel">
+                <div class="card-body p-3">
+                  <div class="row g-2 mb-2">
+                    <div class="col-12 col-lg-6">
+                      <div class="border rounded-3 bg-white p-2 h-100 d-flex flex-column" role="group" aria-labelledby="manualPricingLabel">
+                        <h3 class="form-label fs-6 mb-2 text-center" id="manualPricingLabel">Manual Comps</h3>
+                        <div class="d-grid gap-2 mt-auto">
+                          <button class="btn btn-outline-secondary" id="runCompSearchBtn" type="button" aria-controls="marketSearchLinks" aria-expanded="false">Open Market Search</button>
+                          <button class="btn btn-outline-secondary" id="applyCompPriceBtn" type="button">Apply Comp Median</button>
+                        </div>
+                      </div>
                     </div>
-                    <div class="col-12 col-lg-4 d-grid">
-                      <button class="btn btn-outline-secondary h-100" id="runCompSearchBtn" type="button">Research Market</button>
-                    </div>
-                    <div class="col-12 col-lg-4 d-grid">
-                      <button class="btn btn-outline-secondary h-100" id="applyCompPriceBtn" type="button">Apply Comp Median</button>
+                    <div class="col-12 col-lg-6">
+                      <div class="border rounded-3 bg-white p-2 h-100 d-flex flex-column" role="group" aria-labelledby="assistedPricingLabel">
+                        <h3 class="form-label fs-6 mb-2 text-center" id="assistedPricingLabel">Assisted Research &amp; Pricing</h3>
+                        <div class="d-grid gap-2 mt-auto">
+                          <button class="btn btn-outline-secondary" id="runApiResearchBtn" type="button">Research with API</button>
+                          <button class="btn btn-outline-secondary" id="applyFormulaPriceBtn" type="button">Apply Formula Price</button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div class="mb-3">
-                    <p class="small text-secondary mb-2">Enter up to 5 real comp prices from sold listings or current market checks.</p>
+                  <div id="marketSearchLinks" class="mb-2" hidden></div>
+                  <p id="marketSearchStatus" class="small text-danger mt-2 mb-0" role="alert"></p>
+                  <div class="mb-0">
                     <div class="row g-2">
                       <div class="col-6 col-lg">
                         <label class="form-label visually-hidden" for="manualComp1">Comp 1</label>
@@ -250,9 +303,9 @@
                       </div>
                     </div>
                   </div>
-                  <p id="formulaStatus" class="small text-secondary mt-2 mb-2" role="status" aria-live="polite"></p>
+                  <p id="formulaStatus" class="small text-danger mt-2 mb-0" role="alert" aria-live="polite"></p>
                   <p id="formulaSummary" class="small mb-2"></p>
-                  <p id="compStatus" class="small text-secondary mt-2 mb-2" role="status" aria-live="polite"></p>
+                  <p id="compStatus" class="small text-danger mt-2 mb-0" role="alert" aria-live="polite"></p>
                   <p id="compSummary" class="small mb-2"></p>
                   <div id="compResults" class="d-grid gap-2"></div>
                   <div id="marketTermSuggestions" class="mt-3"></div>
@@ -261,46 +314,11 @@
 
               <div class="mb-3">
                 <label class="form-label" for="notes">Description</label>
-                <textarea class="form-control" name="notes" id="notes" rows="3" placeholder="Add condition notes, measurements, materials, flaws, and shipping details."></textarea>
+                <textarea class="form-control" name="notes" id="notes" rows="5" placeholder="Your description builds automatically. Add measurements, flaws and any extra details here."></textarea>
                 <p class="form-text mb-1">Measurements are strongly preferred for all listings.</p>
-                <div class="d-flex flex-wrap gap-2 mt-2">
-                  <button class="btn btn-outline-secondary btn-sm" type="button" id="generateDescriptionBtn">Generate Description</button>
-                </div>
               </div>
 
-              <details class="mb-3">
-                <summary class="form-label">Additional Details</summary>
-                <fieldset class="mt-3">
-                  <legend class="visually-hidden">Additional Details</legend>
-                <p class="form-text">Use the exact product type, label information and confirmed features. Leave unknown details blank.</p>
-                <div class="row g-3">
-                  <div class="col-12 col-md-6">
-                    <label class="form-label" for="productType">Exact Product Type</label>
-                    <input class="form-control" id="productType" name="productType" placeholder="e.g., ankle boots, cardigan, straight-leg jeans" />
-                  </div>
-                  <div class="col-12 col-md-6">
-                    <label class="form-label" for="styleModel">Style / Model</label>
-                    <input class="form-control" id="styleModel" name="styleModel" placeholder="e.g., 501 Original, Air Max 90" />
-                  </div>
-                  <div class="col-12 col-md-6">
-                    <label class="form-label" for="keyFeatures">Key Features / Style Terms</label>
-                    <input class="form-control" id="keyFeatures" name="keyFeatures" placeholder="Confirmed details, separated by commas: high rise, wide leg" />
-                  </div>
-                  <div class="col-12 col-md-6">
-                    <label class="form-label" for="material">Material</label>
-                    <input class="form-control" id="material" name="material" placeholder="e.g., 100% cotton, leather — check the label" />
-                  </div>
-                  <div class="col-12 col-md-6">
-                    <label class="form-label" for="gender">Gender / Department</label>
-                    <input class="form-control" id="gender" name="gender" placeholder="e.g., Women, Men, Unisex, Kids" />
-                  </div>
-                  <div class="col-12 col-md-6">
-                    <label class="form-label" for="size">Tagged Size</label>
-                    <input class="form-control" id="size" name="size" placeholder="e.g., M, US 8, W30 L32" />
-                  </div>
-                </div>
-                </fieldset>
-              </details>
+
 
               <div class="mb-3">
                 <label class="form-label" for="keywords">Keywords</label>
@@ -347,7 +365,7 @@
               </div>
               <details class="mt-3" open>
                 <summary class="fw-semibold">Universal photo guidelines</summary>
-                <ul class="small text-secondary mt-2 ps-3">
+                <ul class="photo-guidelines-caption small text-secondary mt-2 ps-3">
                   <li><strong>Cover format:</strong> 3:4 portrait, recommended 1200 × 1600 px or higher.</li>
                   <li><strong>Crosslisting compatibility:</strong> Center the merchandise within a square-safe zone for eBay and Poshmark.</li>
                   <li><strong>Framing:</strong> Aim for the product to occupy approximately 80–90% of the usable frame without cropping important details.</li>
@@ -356,52 +374,62 @@
                   <li><strong>Photo order:</strong> Main view → additional angles → details → labels → flaws → measurements/packaging.</li>
                   <li><strong>Storage:</strong> Save original and edited photos in the item&#x27;s OneDrive folder.</li>
                   <li><strong>Upload destination:</strong> Upload final listing photos to Flyp.</li>
-                  <li>Measurement photos are optional. Keep shipping weight internal and out of marketplace photos.</li>
                 </ul>
               </details>
-              <p class="small mb-0 mt-3">Listing Lab provides photography preparation and checklist tracking. Upload actual listing photos to Flyp.</p>
             </section>
 
-            <h3 class="h6 mt-auto">Copy Text</h3>
+            <section class="export-copy-card mb-3" aria-labelledby="listingFormLabel">
+              <div class="export-copy-card__header">
+                <label class="preview-section-label mb-0" id="listingFormLabel" for="exportPlatform">Listing Form</label>
+                <button class="btn btn-outline-secondary btn-sm" id="downloadFormFieldsBtn" type="button">Download Form Fields</button>
+              </div>
+              <select class="form-select" id="exportPlatform">
+                <option value="flyp">Flyp</option>
+                <option value="poshmark">Poshmark</option>
+                <option value="ebay">eBay</option>
+              </select>
+              <p id="exportCompatibilityStatus" class="small text-danger mt-2 mb-0" role="status" aria-live="polite"></p>
+            </section>
+
             <div class="export-copy-grid mb-3" aria-label="Copyable listing text sections">
               <section class="export-copy-card">
                 <div class="export-copy-card__header">
                   <p class="preview-section-label mb-0">Title</p>
-                  <button class="btn btn-outline-secondary btn-sm export-copy-btn" type="button" data-copy-target="exportTitle">Copy</button>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportTitle">Copy</button>
                 </div>
-                <pre id="exportTitle" class="export-copy-value mb-0"></pre>
+                <pre id="exportTitle" data-placeholder="Your listing title will appear here." class="export-copy-value mb-0"></pre>
               </section>
 
               <section class="export-copy-card">
                 <div class="export-copy-card__header">
-                  <p class="preview-section-label mb-0">Listing Price</p>
-                  <button class="btn btn-outline-secondary btn-sm export-copy-btn" type="button" data-copy-target="exportPrice">Copy</button>
+                  <p class="preview-section-label mb-0">Price</p>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportPrice">Copy</button>
                 </div>
-                <pre id="exportPrice" class="export-copy-value mb-0"></pre>
+                <pre id="exportPrice" data-placeholder="Your price will appear here." class="export-copy-value mb-0"></pre>
               </section>
 
               <section class="export-copy-card">
                 <div class="export-copy-card__header">
                   <p class="preview-section-label mb-0">Description</p>
-                  <button class="btn btn-outline-secondary btn-sm export-copy-btn" type="button" data-copy-target="exportDescription">Copy</button>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportDescription">Copy</button>
                 </div>
-                <pre id="exportDescription" class="export-copy-value mb-0"></pre>
+                <pre id="exportDescription" data-placeholder="Your item description will appear here." class="export-copy-value mb-0"></pre>
               </section>
 
               <section class="export-copy-card">
                 <div class="export-copy-card__header">
-                  <p class="preview-section-label mb-0">Buyer Notes</p>
-                  <button class="btn btn-outline-secondary btn-sm export-copy-btn" type="button" data-copy-target="exportSellerNotes">Copy</button>
+                  <p class="preview-section-label mb-0">Keywords</p>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportKeywords">Copy</button>
                 </div>
-                <pre id="exportSellerNotes" class="export-copy-value mb-0"></pre>
+                <pre id="exportKeywords" data-placeholder="Relevant search keywords will appear here." class="export-copy-value mb-0"></pre>
               </section>
 
               <section class="export-copy-card">
                 <div class="export-copy-card__header">
-                  <p class="preview-section-label mb-0">Tags</p>
-                  <button class="btn btn-outline-secondary btn-sm export-copy-btn" type="button" data-copy-target="exportHashtags">Copy</button>
+                  <p class="preview-section-label mb-0" id="exportTagsLabel">Tags</p>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportHashtags">Copy</button>
                 </div>
-                <pre id="exportHashtags" class="export-copy-value mb-0"></pre>
+                <pre id="exportHashtags" data-placeholder="Relevant tags will appear here." class="export-copy-value mb-0"></pre>
               </section>
 
               <section class="export-copy-card export-copy-card--full">
@@ -409,7 +437,7 @@
                   <p class="preview-section-label mb-0">Summary</p>
                   <button class="btn btn-dark btn-sm" type="button" id="copyBtn">Copy Summary</button>
                 </div>
-                <pre id="exportPreview" class="export-copy-value export-copy-value--summary mb-0"></pre>
+                <pre id="exportPreview" data-placeholder="Your complete listing summary will appear here." class="export-copy-value export-copy-value--summary mb-0"></pre>
               </section>
             </div>
 
@@ -432,12 +460,12 @@
             </span>
           </p>
           <p class="small text-secondary mb-0">Local resale prep workspace for pricing, listing copy, and inventory tracking.</p>
-          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html">Create a Listing</a>
+          <a class="badge text-bg-dark mt-2 text-decoration-none" href="new-listing.html?new=1">Create a Listing</a>
         </div>
         <div class="col-6 col-lg-2">
           <p class="small text-uppercase text-secondary mb-2">Product</p>
           <ul class="list-unstyled mb-0">
-            <li><a href="new-listing.html">Create Listing</a></li>
+            <li><a href="new-listing.html?new=1">Create Listing</a></li>
             <li><a href="dashboard.html">Dashboard</a></li>
             <li><a href="pricing.html">Pricing Calculator</a></li>
           </ul>
@@ -473,7 +501,7 @@
       <i class="bi bi-box-seam" aria-hidden="true"></i>
       <span>Home</span>
     </a>
-    <a class="mobile-bottom-nav__item mobile-bottom-nav__item--create" href="new-listing.html" aria-current="page">
+    <a class="mobile-bottom-nav__item mobile-bottom-nav__item--create" href="new-listing.html?new=1" aria-current="page">
       <i class="bi bi-stars" aria-hidden="true"></i>
       <span>Create</span>
     </a>

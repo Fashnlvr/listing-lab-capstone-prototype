@@ -6,9 +6,11 @@
 2. Run `python3 server.py` from this project directory.
 3. Enter your replacement SerpApi key at the hidden terminal prompt. The key stays in server memory and is not written to a file. An existing `SERPAPI_KEY` environment variable also works. `.env` files are not loaded automatically.
 4. Open `http://127.0.0.1:8000/new-listing.html`.
-5. Enter the brand, category, color and any known product/model details. Click **Research Market**.
+5. Enter the brand, category, color and any known product/model details. Click **Research with API**.
 
 The Python server replaces Live Server or `python3 -m http.server` when using research. No third-party Python dependencies are required. Stopping the server removes the prompted key from memory.
+
+**Open Market Search** opens eBay sold and Poshmark sold results directly in new tabs without calling the API or using search credits. Allow pop-ups for this site to open both tabs; recovery links appear only if a tab is blocked. Comp prices can always be entered manually.
 
 ## Use the results
 

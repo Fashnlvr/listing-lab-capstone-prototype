@@ -8,7 +8,12 @@ body {
   height: 100%;
 }
 
+html {
+  font-size: 93.75%;
+}
+
 :root {
+  --ll-content-text-step: 0pt;
   --ll-bg: #f5f5f7;
   --ll-surface: #ffffff;
   --ll-surface-soft: #f1f2f4;
@@ -172,27 +177,27 @@ h6,
 
 h1,
 .h1 {
-  font-size: clamp(2.35rem, 4vw, 3.5rem);
+  font-size: calc(clamp(2.538rem, 4.32vw, 3.78rem) - var(--ll-content-text-step));
 }
 
 h2,
 .h2 {
-  font-size: clamp(1.85rem, 2.4vw, 2.45rem);
+  font-size: calc(clamp(1.998rem, 2.592vw, 2.646rem) - var(--ll-content-text-step));
 }
 
 h3,
 .h3 {
-  font-size: clamp(1.45rem, 1.9vw, 1.85rem);
+  font-size: calc(clamp(1.566rem, 2.052vw, 1.998rem) - var(--ll-content-text-step));
 }
 
 h4,
 .h4 {
-  font-size: 1.28rem;
+  font-size: calc(1.382rem - var(--ll-content-text-step));
 }
 
 h5,
 .h5 {
-  font-size: 1.08rem;
+  font-size: calc(1.166rem - var(--ll-content-text-step));
 }
 
 p,
@@ -205,11 +210,11 @@ caption {
 }
 
 p {
-  font-size: 0.98rem;
+  font-size: calc(0.98rem - var(--ll-content-text-step));
 }
 
 .display-6 {
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: calc(clamp(2rem, 4vw, 3rem) - var(--ll-content-text-step));
   font-weight: 700;
   letter-spacing: -0.05em;
   line-height: 1;
@@ -220,19 +225,19 @@ body.home-page .display-6 {
 }
 
 .fs-5 {
-  font-size: 1.14rem !important;
+  font-size: calc(1.14rem - var(--ll-content-text-step)) !important;
   line-height: 1.3;
 }
 
 .fs-4 {
-  font-size: 1.65rem !important;
+  font-size: calc(1.65rem - var(--ll-content-text-step)) !important;
   letter-spacing: -0.03em;
   line-height: 1.1;
 }
 
 .small,
 small {
-  font-size: 0.84rem !important;
+  font-size: calc(0.84rem - var(--ll-content-text-step)) !important;
 }
 
 .fw-semibold {
@@ -305,7 +310,7 @@ body.interior-page .navbar .container {
 }
 
 .navbar .navbar-brand .brand-wordmark {
-  font-size: 2rem;
+  font-size: calc(2rem - var(--ll-content-text-step));
   font-weight: 500;
   letter-spacing: -0.035em;
 }
@@ -325,7 +330,7 @@ body.interior-page .navbar .container {
 
 .brand-wordmark {
   color: var(--ll-text);
-  font-size: clamp(1.28rem, 1rem + 0.8vw, 1.62rem);
+  font-size: calc(clamp(1.28rem, 1rem + 0.8vw, 1.62rem) - var(--ll-content-text-step));
   font-weight: 500;
   letter-spacing: -0.04em;
   line-height: 1;
@@ -391,7 +396,7 @@ body.interior-page .navbar .container {
 .navbar .nav-link {
   color: var(--ll-muted);
   font-weight: 500;
-  font-size: 1.16rem;
+  font-size: calc(1.16rem - var(--ll-content-text-step));
   padding: 0.45rem 0.45rem !important;
   border-radius: 999px;
   transition: color 0.18s ease, background-color 0.18s ease;
@@ -446,7 +451,7 @@ body.interior-page .navbar .container {
   width: 2.55rem;
   height: 2.45rem;
   min-width: 0;
-  font-size: 0.98rem;
+  font-size: calc(0.98rem - var(--ll-content-text-step));
   color: transparent;
   border: 1px solid var(--ll-line);
   border-radius: 8px;
@@ -641,6 +646,30 @@ body.interior-page .navbar .container {
 }
 
 /* Forms */
+.pricing-helper #marketSearchStatus:empty,
+.pricing-helper #formulaStatus:empty,
+.pricing-helper #formulaSummary:empty,
+.pricing-helper #compStatus:empty,
+.pricing-helper #compSummary:empty,
+.pricing-helper #compResults:empty,
+.pricing-helper #marketTermSuggestions:empty {
+  display: none;
+}
+
+#exportCompatibilityStatus:empty {
+  display: none;
+}
+
+.pricing-helper .manual-comp-input {
+  appearance: auto;
+  -moz-appearance: auto;
+}
+
+.pricing-helper .manual-comp-input::-webkit-inner-spin-button,
+.pricing-helper .manual-comp-input::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
 .form-label {
   color: var(--ll-text);
   font-weight: 600;
@@ -703,7 +732,7 @@ select:-webkit-autofill:focus {
 
 .progress-bar {
   background: linear-gradient(90deg, #6a244c 0%, #4a1538 58%, #2d071d 100%);
-  font-size: 0.8rem;
+  font-size: calc(0.8rem - var(--ll-content-text-step));
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -728,7 +757,7 @@ select:-webkit-autofill:focus {
 
 .create-listing-page .listing-form-card > .card-body > p.small.text-secondary:first-of-type {
   margin-bottom: 0.5rem;
-  font-size: 0.98rem !important;
+  font-size: calc(0.98rem - var(--ll-content-text-step)) !important;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--ll-text) !important;
@@ -740,8 +769,8 @@ select:-webkit-autofill:focus {
   border: 0;
   border-radius: 0;
   margin-bottom: 1.25rem !important;
-  background: rgba(62, 10, 42, 0.38);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--ll-text);
   box-shadow: none;
 }
 
@@ -765,7 +794,7 @@ select:-webkit-autofill:focus {
 .home-hero__eyebrow,
 .home-section-kicker {
   color: #e9cfdc;
-  font-size: 0.8rem;
+  font-size: calc(0.8rem - var(--ll-content-text-step));
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -779,11 +808,11 @@ select:-webkit-autofill:focus {
 .home-hero h1,
 .home-hero .h2,
 .home-hero p {
-  color: #fff;
+  color: var(--ll-text);
 }
 
 .home-hero .h2 {
-  font-size: clamp(3.2rem, 6.3vw, 5.1rem);
+  font-size: calc(clamp(3.456rem, 6.804vw, 5.508rem) - var(--ll-content-text-step));
   line-height: 1.08;
   letter-spacing: -0.065em;
   max-width: 50rem;
@@ -795,8 +824,8 @@ body.home-page .home-hero p.fw-semibold {
   max-width: 46rem;
   margin-left: auto;
   margin-right: auto;
-  color: rgba(255, 255, 255, 0.84);
-  font-size: clamp(1.35rem, 2vw, 1.6rem);
+  color: var(--ll-text);
+  font-size: calc(clamp(1.35rem, 2vw, 1.6rem) - var(--ll-content-text-step));
   font-weight: 500 !important;
 }
 
@@ -804,8 +833,8 @@ body.home-page .home-hero p.mb-3 {
   max-width: 43rem;
   margin-left: auto;
   margin-right: auto;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 1.14rem;
+  color: var(--ll-muted);
+  font-size: calc(1.14rem - var(--ll-content-text-step));
 }
 
 .home-hero .btn-outline-secondary {
@@ -836,7 +865,7 @@ body.home-page .home-hero p.mb-3 {
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: #fff;
-  font-size: 0.82rem;
+  font-size: calc(0.82rem - var(--ll-content-text-step));
   font-weight: 600;
 }
 
@@ -867,7 +896,7 @@ body.home-page .home-hero .btn-dark {
   color: var(--ll-accent);
   box-shadow: none;
   padding: 1rem 1.45rem;
-  font-size: 1.08rem;
+  font-size: calc(1.08rem - var(--ll-content-text-step));
 }
 
 body.home-page .hero-cta-arrow {
@@ -972,7 +1001,7 @@ body.home-page .home-workflow-card::after {
   left: 50%;
   transform: translate(-50%, -44%);
   font-family: "Skia", "Avenir Next", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
-  font-size: 8.8rem;
+  font-size: calc(8.8rem - var(--ll-content-text-step));
   line-height: 1;
   color: rgba(74, 21, 56, 0.12);
   pointer-events: none;
@@ -996,7 +1025,7 @@ body.home-page .home-workflow-card--four::after {
 
 body.home-page .home-row-workflow .home-workflow-kicker {
   display: block;
-  font-size: 0.94rem !important;
+  font-size: calc(0.94rem - var(--ll-content-text-step)) !important;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 700;
@@ -1005,7 +1034,7 @@ body.home-page .home-row-workflow .home-workflow-kicker {
 }
 
 body.home-page .home-workflow-card .fw-semibold {
-  font-size: 1.42rem;
+  font-size: calc(1.42rem - var(--ll-content-text-step));
   line-height: 1.15;
   max-width: 11rem;
   margin-bottom: 0.7rem !important;
@@ -1015,7 +1044,7 @@ body.home-page .home-workflow-card .fw-semibold {
 }
 
 body.home-page .home-workflow-card .small {
-  font-size: 1.1rem !important;
+  font-size: calc(1.1rem - var(--ll-content-text-step)) !important;
   max-width: 13rem;
   line-height: 1.7;
   margin-left: auto;
@@ -1037,7 +1066,7 @@ body.home-page .home-workflow-note span {
   border-radius: 14px;
   background: #ffffff;
   color: var(--ll-text);
-  font-size: 0.98rem;
+  font-size: calc(0.98rem - var(--ll-content-text-step));
   font-weight: 600;
 }
 
@@ -1058,7 +1087,7 @@ body.home-page .home-workflow-note span {
   border: 1px solid rgba(45, 7, 29, 0.18);
   background: linear-gradient(180deg, #ffffff 0%, #f1f1f3 100%);
   color: var(--ll-accent);
-  font-size: 1rem;
+  font-size: calc(1rem - var(--ll-content-text-step));
   font-weight: 600;
   text-decoration: none;
 }
@@ -1119,7 +1148,7 @@ body.home-page .home-workflow-note span {
   border-radius: 16px;
   background: linear-gradient(180deg, #4a1538 0%, #2d071d 100%);
   color: #ffffff;
-  font-size: 1.28rem;
+  font-size: calc(1.28rem - var(--ll-content-text-step));
   align-self: center;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
@@ -1129,7 +1158,7 @@ body.home-page .home-workflow-note span {
 }
 
 .home-tool-card .fw-semibold {
-  font-size: 1.42rem;
+  font-size: calc(1.42rem - var(--ll-content-text-step));
   line-height: 1.15;
   color: var(--ll-text);
 }
@@ -1138,7 +1167,7 @@ body.home-page .home-workflow-note span {
   max-width: 13rem;
   margin-left: auto;
   margin-right: auto;
-  font-size: 1.1rem !important;
+  font-size: calc(1.1rem - var(--ll-content-text-step)) !important;
   line-height: 1.7;
 }
 
@@ -1188,13 +1217,13 @@ body.home-page .home-workflow-note span {
 .home-stat-card .small:first-child {
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  font-size: 0.84rem !important;
+  font-size: calc(0.84rem - var(--ll-content-text-step)) !important;
   margin-bottom: 0.9rem !important;
   color: var(--ll-accent);
 }
 
 .home-stat-card .display-6 {
-  font-size: clamp(3.2rem, 5vw, 4.4rem);
+  font-size: calc(clamp(3.2rem, 5vw, 4.4rem) - var(--ll-content-text-step));
   line-height: 0.95;
   margin-bottom: 0.55rem !important;
   color: var(--ll-text);
@@ -1202,7 +1231,7 @@ body.home-page .home-workflow-note span {
 
 .home-stat-card .small:last-child {
   max-width: 13rem;
-  font-size: 1.14rem !important;
+  font-size: calc(1.14rem - var(--ll-content-text-step)) !important;
   line-height: 1.65;
   margin-left: auto;
   margin-right: auto;
@@ -1225,7 +1254,7 @@ body.home-page .home-workflow-note span {
   background: rgba(74, 21, 56, 0.04);
   color: var(--ll-accent);
   font-family: bootstrap-icons;
-  font-size: 1.05rem;
+  font-size: calc(1.05rem - var(--ll-content-text-step));
 }
 
 .home-stat-card--inputs .card-body::before {
@@ -1269,7 +1298,7 @@ body.home-page .home-workflow-note span {
   background: linear-gradient(180deg, rgba(74, 21, 56, 0.08) 0%, rgba(74, 21, 56, 0.02) 100%);
   color: var(--ll-accent);
   font-family: bootstrap-icons;
-  font-size: 1.15rem;
+  font-size: calc(1.15rem - var(--ll-content-text-step));
 }
 
 .home-insight-card--why::after {
@@ -1297,11 +1326,11 @@ body.home-page .home-workflow-note span {
   max-width: 30rem;
   margin-bottom: 0;
   line-height: 1.75;
-  font-size: 1.18rem !important;
+  font-size: calc(1.18rem - var(--ll-content-text-step)) !important;
 }
 
 body.home-page .home-insight-card .h5 {
-  font-size: 1.62rem;
+  font-size: calc(1.75rem - var(--ll-content-text-step));
   line-height: 1.14;
   max-width: 24rem;
 }
@@ -1329,7 +1358,7 @@ body.home-page .home-row-insights .home-insight-card--prep .small.text-secondary
 }
 
 body.home-page .home-row-insights .home-insight-card--prep .h5 {
-  color: var(--ll-text) !important;
+  color: var(--ll-accent) !important;
 }
 
 body.home-page .home-row-insights .home-insight-card--prep .home-section-kicker {
@@ -1343,7 +1372,7 @@ body.home-page .home-row-insights .home-insight-card--prep::after {
 }
 
 body.home-page .home-panel .small:not(.text-secondary) {
-  font-size: 1.04rem !important;
+  font-size: calc(1.04rem - var(--ll-content-text-step)) !important;
 }
 
 body.home-page .home-stat-card {
@@ -1396,7 +1425,7 @@ body.home-page .col-lg-6 .home-panel {
 
 .home-workflow-note {
   color: var(--ll-accent);
-  font-size: 0.82rem;
+  font-size: calc(0.82rem - var(--ll-content-text-step));
   font-weight: 700;
 }
 
@@ -1417,7 +1446,7 @@ body.home-page .home-workflow-card p:not(.home-workflow-kicker):not(.fw-semibold
 body.home-page .home-step-card p:not(.fw-semibold):not(.small.text-secondary),
 body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   color: var(--ll-text);
-  font-size: 1.1rem;
+  font-size: calc(1.1rem - var(--ll-content-text-step));
 }
 
 .home-step-badge {
@@ -1461,7 +1490,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 }
 
 .dashboard-summary-card__label {
-  font-size: 0.76rem;
+  font-size: calc(0.76rem - var(--ll-content-text-step));
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1469,7 +1498,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 }
 
 .dashboard-summary-card__value {
-  font-size: clamp(1.9rem, 1.3rem + 1vw, 2.45rem);
+  font-size: calc(clamp(1.9rem, 1.3rem + 1vw, 2.45rem) - var(--ll-content-text-step));
   line-height: 1;
   color: var(--ll-text);
   font-weight: 700;
@@ -1477,7 +1506,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 
 .dashboard-summary-card__meta {
   color: var(--ll-muted);
-  font-size: 0.92rem;
+  font-size: calc(0.92rem - var(--ll-content-text-step));
   line-height: 1.45;
 }
 
@@ -1554,7 +1583,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
     linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 243, 248, 0.98) 100%);
   color: var(--ll-muted) !important;
   text-align: center;
-  font-size: 1.02rem;
+  font-size: calc(1.02rem - var(--ll-content-text-step));
   font-weight: 600;
   box-shadow: none;
 }
@@ -1574,7 +1603,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   border-radius: 18px;
   background: #f1ecef;
   color: var(--ll-accent);
-  font-size: 2rem;
+  font-size: calc(2rem - var(--ll-content-text-step));
   font-weight: 400;
 }
 
@@ -1592,7 +1621,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 .table thead th {
   border-bottom-color: var(--ll-line);
   color: var(--ll-muted);
-  font-size: 0.76rem;
+  font-size: calc(0.76rem - var(--ll-content-text-step));
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1619,13 +1648,13 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 }
 
 .dashboard-item-meta {
-  font-size: 0.88rem;
+  font-size: calc(0.88rem - var(--ll-content-text-step));
   color: var(--ll-muted);
   margin-bottom: 0.2rem;
 }
 
 .dashboard-item-note {
-  font-size: 0.92rem;
+  font-size: calc(0.92rem - var(--ll-content-text-step));
   color: var(--ll-text);
   line-height: 1.45;
 }
@@ -1642,7 +1671,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   border-radius: 10px;
   background: #f6f2f5;
   color: var(--ll-accent);
-  font-size: 0.82rem;
+  font-size: calc(0.82rem - var(--ll-content-text-step));
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1661,7 +1690,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   min-height: 2rem;
   padding: 0.38rem 0.7rem;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: calc(0.78rem - var(--ll-content-text-step));
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1721,7 +1750,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 .utility-page h1.h3,
 .listing-detail-page h1.h3 {
   font-family: "Skia", "Avenir Next", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
-  font-size: clamp(1.95rem, 1.45rem + 0.95vw, 2.45rem);
+  font-size: calc(clamp(2.106rem, 1.566rem + 1.026vw, 2.646rem) - var(--ll-content-text-step));
   line-height: 1.08;
   letter-spacing: -0.04em;
   color: var(--ll-accent);
@@ -1737,7 +1766,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 .create-listing-page .listing-preview-card h3.h6,
 .listing-detail-page h2.h5 {
   font-family: "Skia", "Avenir Next", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
-  font-size: 1.55rem;
+  font-size: calc(1.674rem - var(--ll-content-text-step));
   line-height: 1.12;
   color: var(--ll-text);
   margin-bottom: 0.95rem;
@@ -1784,13 +1813,13 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 .templates-page #templateLibraryStatus,
 .templates-page #templateEditorStatus,
 .templates-page #skuSettingsStatus {
-  font-size: 1.04rem;
+  font-size: calc(1.04rem - var(--ll-content-text-step));
   line-height: 1.7;
 }
 
 .templates-page .templates-library-card .form-label,
 .templates-page .template-output-card .form-label {
-  font-size: 1rem;
+  font-size: calc(1rem - var(--ll-content-text-step));
   font-weight: 600;
   color: var(--ll-text);
 }
@@ -1799,12 +1828,12 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 .templates-page .template-output-card .form-control,
 .templates-page .templates-library-card .form-select,
 .templates-page .template-output-card .form-select {
-  font-size: 1rem;
+  font-size: calc(1rem - var(--ll-content-text-step));
 }
 
 .templates-page .template-output-card .small.text-secondary,
 .templates-page .templates-library-card .small.text-secondary {
-  font-size: 1.02rem !important;
+  font-size: calc(1.02rem - var(--ll-content-text-step)) !important;
 }
 
 .templates-output-grid {
@@ -1844,7 +1873,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(250, 249, 250, 0.98) 0%, rgba(243, 239, 242, 0.98) 100%);
   color: var(--ll-text);
-  font-size: 1.03rem;
+  font-size: calc(1.03rem - var(--ll-content-text-step));
   line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
@@ -1886,17 +1915,17 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 .saved-template-card__name {
   font-weight: 700;
   color: var(--ll-text);
-  font-size: 1.06rem;
+  font-size: calc(1.06rem - var(--ll-content-text-step));
 }
 
 .saved-template-card__meta {
-  font-size: 0.96rem;
+  font-size: calc(0.96rem - var(--ll-content-text-step));
   color: var(--ll-muted);
 }
 
 .saved-template-card__preview {
   min-height: 6.25rem;
-  font-size: 1rem;
+  font-size: calc(1rem - var(--ll-content-text-step));
   flex: 1 1 auto;
 }
 
@@ -1953,11 +1982,11 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 }
 
 .templates-page .templates-workspace .h5 {
-  font-size: 1.62rem;
+  font-size: calc(1.75rem - var(--ll-content-text-step));
 }
 
 .templates-page .preview-section-label {
-  font-size: 0.84rem;
+  font-size: calc(0.84rem - var(--ll-content-text-step));
 }
 
 .how-card-grid {
@@ -1979,7 +2008,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 
 .how-detail-card .h6 {
   margin-bottom: 0.1rem;
-  font-size: 1.22rem;
+  font-size: calc(1.318rem - var(--ll-content-text-step));
   line-height: 1.22;
   color: var(--ll-text);
 }
@@ -2036,17 +2065,17 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 }
 
 .about-page main .about-story-card h2.h5 {
-  font-size: 1.68rem;
+  font-size: calc(1.814rem - var(--ll-content-text-step));
 }
 
 .about-page main .about-story-card p:not(.preview-section-label),
 .about-page main .about-hero-card p {
-  font-size: 1.06rem;
+  font-size: calc(1.06rem - var(--ll-content-text-step));
   line-height: 1.75;
 }
 
 .about-page .about-story-card .preview-section-label {
-  font-size: 0.82rem;
+  font-size: calc(0.82rem - var(--ll-content-text-step));
 }
 
 .about-page .about-story-card .border.rounded {
@@ -2061,7 +2090,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 }
 
 .how-it-works-page main .card h2.h5 {
-  font-size: 1.62rem;
+  font-size: calc(1.75rem - var(--ll-content-text-step));
 }
 
 .how-it-works-page main#main-content > section.card:first-of-type .h3,
@@ -2071,7 +2100,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 }
 
 .how-it-works-page main#main-content .preview-section-label {
-  font-size: 0.86rem;
+  font-size: calc(0.86rem - var(--ll-content-text-step));
 }
 
 .templates-workspace .form-text {
@@ -2095,13 +2124,13 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 }
 
 .utility-page #featureStatusList > .border.rounded > span:first-child {
-  font-size: 1.12rem;
+  font-size: calc(1.12rem - var(--ll-content-text-step));
   line-height: 1.55;
   color: var(--ll-text);
 }
 
 .utility-page #featureStatusList > .border.rounded > span:last-child:not(.text-success) {
-  font-size: 1.02rem;
+  font-size: calc(1.02rem - var(--ll-content-text-step));
   letter-spacing: 0.02em;
 }
 
@@ -2109,7 +2138,7 @@ body.utility-page main .card > .card-body > p.text-secondary.mb-0,
 body.utility-page main .card > .card-body > p.text-secondary.small.mb-3,
 body.utility-page #pricingEstimateStatus,
 body.utility-page #calcStatus {
-  font-size: 1.06rem !important;
+  font-size: calc(1.06rem - var(--ll-content-text-step)) !important;
   line-height: 1.7;
 }
 
@@ -2136,7 +2165,7 @@ body.utility-page #calcStatus {
 .create-listing-page .listing-form-card h1,
 .create-listing-page .listing-preview-card h2 {
   font-family: "Skia", "Avenir Next", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
-  font-size: clamp(1.95rem, 1.45rem + 1vw, 2.5rem);
+  font-size: calc(clamp(2.106rem, 1.566rem + 1.08vw, 2.7rem) - var(--ll-content-text-step));
   line-height: 1.05;
   letter-spacing: -0.04em;
   font-weight: 700;
@@ -2203,7 +2232,7 @@ body.utility-page #calcStatus {
 
 .preview-card-kicker,
 .preview-section-label {
-  font-size: 0.78rem;
+  font-size: calc(0.78rem - var(--ll-content-text-step));
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2214,7 +2243,7 @@ body.utility-page #calcStatus {
 .create-listing-page .listing-preview-card p,
 .create-listing-page .listing-preview-card li,
 .create-listing-page .listing-preview-card pre {
-  font-size: 1.04rem;
+  font-size: calc(1.04rem - var(--ll-content-text-step));
 }
 
 .preview-summary-card,
@@ -2225,6 +2254,12 @@ body.utility-page #calcStatus {
     radial-gradient(circle at top right, rgba(74, 21, 56, 0.06) 0%, rgba(74, 21, 56, 0) 34%),
     linear-gradient(180deg, #fbf9fa 0%, #f3eff2 100%);
   box-shadow: 0 12px 28px rgba(38, 22, 35, 0.06);
+}
+
+.create-listing-page .listing-preview-card .photo-guidelines-caption,
+.create-listing-page .listing-preview-card .photo-guidelines-caption li {
+  font-size: calc(1.04rem - var(--ll-content-text-step)) !important;
+  line-height: 1.7;
 }
 
 .preview-summary-card {
@@ -2267,7 +2302,7 @@ body.utility-page #calcStatus {
 
 .preview-summary-list dt {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: calc(0.8rem - var(--ll-content-text-step));
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -2289,6 +2324,16 @@ body.utility-page #calcStatus {
   color: var(--ll-muted);
 }
 
+#photoRequirementList {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 575.98px) {
+  #photoRequirementList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .photo-requirement {
   display: flex;
   align-items: flex-start;
@@ -2297,7 +2342,7 @@ body.utility-page #calcStatus {
   border: 1px solid rgba(74, 21, 56, 0.12);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.8);
-  font-size: 0.9rem;
+  font-size: calc(0.9rem - var(--ll-content-text-step));
   cursor: pointer;
 }
 
@@ -2381,7 +2426,7 @@ body.utility-page #calcStatus {
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.82);
   text-align: left;
-  font-size: 0.86rem;
+  font-size: calc(0.86rem - var(--ll-content-text-step));
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -2400,7 +2445,7 @@ body.utility-page #calcStatus {
   gap: 0.35rem;
   text-align: left;
   color: var(--ll-text);
-  font-size: 0.83rem;
+  font-size: calc(0.83rem - var(--ll-content-text-step));
   line-height: 1.4;
 }
 
@@ -2430,7 +2475,7 @@ body.utility-page #calcStatus {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(4.2rem, 10vw, 6rem);
+  font-size: calc(clamp(4.2rem, 10vw, 6rem) - var(--ll-content-text-step));
   color: var(--ll-accent);
   opacity: 0.08;
   pointer-events: none;
@@ -2468,19 +2513,19 @@ body.utility-page #calcStatus {
 }
 
 .create-listing-page #listingCardTitle {
-  font-size: 1.45rem !important;
+  font-size: calc(1.45rem - var(--ll-content-text-step)) !important;
   line-height: 1.18;
 }
 
 .create-listing-page #listingCardPrice {
-  font-size: 1.28rem !important;
+  font-size: calc(1.28rem - var(--ll-content-text-step)) !important;
 }
 
 #listingSnapshotRange,
 #listingSnapshotPriceCheck,
 #listingCardCondition,
 #listingCardNotes {
-  font-size: 0.98rem;
+  font-size: calc(0.98rem - var(--ll-content-text-step));
 }
 
 .create-listing-page #listingCardPrice,
@@ -2492,7 +2537,7 @@ body.utility-page #calcStatus {
 }
 
 .create-listing-page .listing-preview-card h3.h6 {
-  font-size: 1.35rem;
+  font-size: calc(1.458rem - var(--ll-content-text-step));
   margin-bottom: 0.7rem;
 }
 
@@ -2510,7 +2555,7 @@ body.utility-page #calcStatus {
 
 .create-listing-page #exportPreview {
   min-height: 620px;
-  font-size: 1.08rem;
+  font-size: calc(1.08rem - var(--ll-content-text-step));
   line-height: 1.75;
 }
 
@@ -2542,12 +2587,21 @@ body.utility-page #calcStatus {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.9);
   color: var(--ll-text);
-  font-size: 1rem;
+  font-size: calc(1rem - var(--ll-content-text-step));
   line-height: 1.65;
 }
 
 .export-copy-value--summary {
   min-height: 14rem;
+}
+
+.export-copy-value:empty::before {
+  content: attr(data-placeholder);
+  color: var(--ll-muted);
+}
+
+.export-copy-value--summary:empty::before {
+  color: rgba(248, 244, 247, 0.7);
 }
 
 .preview-actions {
@@ -2627,7 +2681,7 @@ footer .row {
 }
 
 .footer-brand .brand-wordmark {
-  font-size: 2rem;
+  font-size: calc(2rem - var(--ll-content-text-step));
 }
 
 footer .footer-brand .brand-mark {
@@ -2655,7 +2709,7 @@ footer li + li {
 
 footer a {
   text-decoration: none;
-  font-size: 1.02rem;
+  font-size: calc(1.02rem - var(--ll-content-text-step));
   line-height: 1.55;
 }
 
@@ -2666,27 +2720,27 @@ footer .badge.text-bg-dark {
   width: 10.5rem;
   padding: 0.5rem 1rem;
   border-radius: 12px;
-  font-size: 0.98rem;
+  font-size: calc(0.98rem - var(--ll-content-text-step));
   font-weight: 500;
 }
 
 footer .small.text-uppercase.text-secondary {
-  font-size: 0.84rem !important;
+  font-size: calc(0.84rem - var(--ll-content-text-step)) !important;
   letter-spacing: 0.08em;
 }
 
 footer .small.text-secondary {
-  font-size: 1.08rem !important;
+  font-size: calc(1.08rem - var(--ll-content-text-step)) !important;
   line-height: 1.68;
 }
 
 footer .row > :first-child .small.text-secondary {
-  font-size: 1.3rem !important;
+  font-size: calc(1.3rem - var(--ll-content-text-step)) !important;
   max-width: none;
 }
 
 footer li[aria-label="Social media icons (not linked)"] {
-  font-size: 1.5rem !important;
+  font-size: calc(1.5rem - var(--ll-content-text-step)) !important;
   margin-top: 0.35rem;
 }
 
@@ -2847,7 +2901,7 @@ footer li[aria-label="Social media icons (not linked)"] {
   }
 
   .brand-wordmark {
-    font-size: 1.2rem;
+    font-size: calc(1.2rem - var(--ll-content-text-step));
   }
 
   .home-hero__body {
@@ -2863,7 +2917,7 @@ footer li[aria-label="Social media icons (not linked)"] {
   }
 
   .home-hero .h2 {
-    font-size: clamp(3.3rem, 13vw, 4.7rem);
+    font-size: calc(clamp(3.564rem, 14.04vw, 5.076rem) - var(--ll-content-text-step));
     max-width: 18rem;
     margin-left: 0;
     margin-right: 0;
@@ -2877,7 +2931,7 @@ footer li[aria-label="Social media icons (not linked)"] {
   }
 
   body.home-page .home-hero p.fw-semibold {
-    font-size: 1rem;
+    font-size: calc(1rem - var(--ll-content-text-step));
   }
 
   body.home-page .home-hero__eyebrow {
@@ -3004,12 +3058,12 @@ footer li[aria-label="Social media icons (not linked)"] {
     border-radius: 14px;
     color: var(--ll-muted);
     text-decoration: none;
-    font-size: 0.76rem;
+    font-size: calc(0.76rem - var(--ll-content-text-step));
     font-weight: 500;
   }
 
   .mobile-bottom-nav__item i {
-    font-size: 1.1rem;
+    font-size: calc(1.1rem - var(--ll-content-text-step));
     line-height: 1;
   }
 
@@ -3025,4 +3079,126 @@ footer li[aria-label="Social media icons (not linked)"] {
   body {
     padding-bottom: 5.4rem;
   }
+}
+
+/* Keep form headings and labels consistent, including Bootstrap size utilities. */
+.form-label,
+.form-label.fs-6 {
+  font-size: calc(1.1rem - var(--ll-content-text-step)) !important;
+}
+
+h6,
+.h6 {
+  font-size: calc(1.08rem - var(--ll-content-text-step));
+}
+
+/* Page content is two points smaller; navigation retains its current scale. */
+main,
+body > footer {
+  --ll-content-text-step: 2pt;
+  font-size: calc(1rem - var(--ll-content-text-step));
+}
+
+main .form-control,
+main .form-select,
+main .input-group-text,
+body > footer .form-control,
+body > footer .form-select {
+  font-size: calc(1rem - var(--ll-content-text-step));
+}
+
+main .form-control-sm,
+main .form-select-sm,
+main .form-text {
+  font-size: calc(0.875rem - var(--ll-content-text-step));
+}
+
+main .form-control-lg,
+main .form-select-lg {
+  font-size: calc(1.25rem - var(--ll-content-text-step));
+}
+
+main .btn,
+body > footer .btn {
+  --bs-btn-font-size: calc(1rem - var(--ll-content-text-step));
+}
+
+main .btn-sm,
+body > footer .btn-sm {
+  --bs-btn-font-size: calc(0.875rem - var(--ll-content-text-step));
+}
+
+main .btn-lg,
+body > footer .btn-lg {
+  --bs-btn-font-size: calc(1.25rem - var(--ll-content-text-step));
+}
+
+/* Match entered values and copyable output on Create Listing. */
+.create-listing-page main .form-control,
+.create-listing-page main .form-select,
+.create-listing-page .listing-preview-card .export-copy-value,
+.create-listing-page .listing-preview-card #exportPreview {
+  font-family: var(--bs-body-font-family);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+/* Shared deep-purple headings and actions across every page. */
+:is(h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6),
+.form-label,
+legend,
+summary,
+.preview-section-label,
+.dashboard-summary-card__label,
+.saved-template-card__name,
+.dashboard-item-title,
+.home-section-kicker,
+.home-hero__eyebrow,
+.home-workflow-kicker,
+.home-step-card .fw-semibold,
+thead th,
+footer .text-uppercase {
+  color: var(--ll-accent) !important;
+}
+
+.btn {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: var(--ll-accent);
+  --bs-btn-border-color: var(--ll-accent);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--ll-accent-strong);
+  --bs-btn-hover-border-color: var(--ll-accent-strong);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: var(--ll-accent-strong);
+  --bs-btn-active-border-color: var(--ll-accent-strong);
+  --bs-btn-disabled-color: #fff;
+  --bs-btn-disabled-bg: var(--ll-accent);
+  --bs-btn-disabled-border-color: var(--ll-accent);
+  background: var(--ll-accent) !important;
+  border-color: var(--ll-accent) !important;
+  color: #fff !important;
+}
+
+.btn:hover,
+.btn:focus-visible,
+.btn:active,
+.btn.active {
+  background: var(--ll-accent-strong) !important;
+  border-color: var(--ll-accent-strong) !important;
+  color: #fff !important;
+}
+
+.badge.text-bg-light {
+  color: var(--ll-accent) !important;
+}
+
+.badge.text-bg-dark,
+.navbar-toggler {
+  background: var(--ll-accent) !important;
+  border-color: var(--ll-accent) !important;
+  color: #fff !important;
+}
+
+.navbar-toggler .navbar-toggler-icon {
+  filter: brightness(0) invert(1);
 }
