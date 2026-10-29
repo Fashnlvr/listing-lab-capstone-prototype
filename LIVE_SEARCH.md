@@ -14,7 +14,7 @@ The Python server replaces Live Server or `python3 -m http.server` when using re
 
 ## Use the results
 
-Each research request runs two Google queries through SerpApi: one for eBay item pages and one for Poshmark listing pages, using a broad query from the required title, brand and category, without requiring the word “sold”. Optional model, material, color and feature details rank the returned leads rather than becoming mandatory search terms. The same results feed comparable listing cards and repeated wording suggestions. Search results are leads, not authenticated sales data, search-volume measurements or proof of a trend.
+Each research request runs two Google queries through SerpApi: one for eBay item pages and one for Poshmark listing pages, using only the Title field, without requiring the word “sold”. Brand, Category and Additional Details do not affect research queries, ranking or cache identity. The same results feed comparable listing cards and repeated wording suggestions. Search results are leads, not authenticated sales data, search-volume measurements or proof of a trend.
 
 - Open a source listing and check whether it sold. Enter the verified sale price in USD, confirm the checkbox and select **Add to comps**. **Apply Comp Median** uses those verified prices and any manually entered comp values.
 - Select market wording that accurately describes your item. Selected terms automatically enter Keywords and Tags; unconfirmed terms never enter item descriptions.
@@ -35,3 +35,5 @@ References: [SerpApi Google Search API](https://serpapi.com/search-api), [organi
 ## Validation
 
 Run `python3 -m unittest discover -s tests -v`. Tests mock the search provider; they consume no search credits. A live request with your replacement key is still needed to validate your account and allowance.
+
+When a marketplace returns no usable listings, research retries once with a shorter title and a domain-wide query. Normal searches use two provider requests; empty-result fallbacks can use up to four. Only individual listing URLs are accepted, and empty results are never cached. SerpApi may return successful-but-empty Google searches during provider incidents; the UI directs sellers to Open Market Search rather than claiming there are no matching items.

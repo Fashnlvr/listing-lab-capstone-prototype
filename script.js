@@ -1512,46 +1512,8 @@ function buildSearchSuggestions(state) {
 }
 
 function buildGeneralResearchQuery(state) {
-  const defaults = { shoes: "shoes", bags: "bag", tops: "top", bottoms: "pants", shorts: "shorts", skirts: "skirt",
-    dresses: "dress", outerwear: "jacket", activewear: "activewear", jewelry: "jewelry", accessories: "accessories" };
-  const types = {
-    shoes: /\b(sneakers?|trainers?|boots?|sandals?|heels?|loafers?|flats?|shoes?)\b/i,
-    bags: /\b(handbags?|backpacks?|totes?|satchels?|bags?)\b/i,
-    tops: /\b(sweaters?|cardigans?|hoodies?|sweatshirts?|blouses?|t-shirts?|shirts?|tops?)\b/i,
-    bottoms: /\b(jeans|leggings|trousers|pants)\b/i,
-    shorts: /\bshorts\b/i, skirts: /\bskirts?\b/i,
-    dresses: /\b(dresses|dress|jumpsuits?|rompers?)\b/i,
-    outerwear: /\b(jackets?|coats?|blazers?|vests?)\b/i,
-    activewear: /\b(leggings|swimsuits?|bikinis?|swimwear|activewear|sports bras?)\b/i,
-    jewelry: /\b(watches|watch|necklaces?|bracelets?|earrings?|rings?|jewelry)\b/i,
-    accessories: /\b(belts?|scarves|scarf|hats?|sunglasses|wallets?|accessories)\b/i,
-  };
-  const title = String(state.itemName || "").trim();
-  const brand = String(state.brand || "").trim();
-  // Exact model, material, fit, color and size are ranking hints, never mandatory search terms.
-  const match = state.category && types[state.category]
-    ? title.match(types[state.category]) : Object.values(types).map((pattern) => title.match(pattern)).find(Boolean);
-  const product = match?.[0] || defaults[state.category] || "";
-  if (brand && product) return `${brand} ${product}`.slice(0, 120);
-  const words = [brand, title || product].filter(Boolean).join(" ").split(/\s+/);
-  const seen = new Set();
-  return words.filter((word) => {
-    const key = normalize(word);
-    if (!key || seen.has(key)) return false;
-    seen.add(key); return true;
-  }).slice(0, 7).join(" ").slice(0, 120);
-}
-
-function rankResearchListings(listings, state) {
-  const hints = [state.styleModel, state.keyFeatures, state.material, state.color, state.gender, state.size]
-    .filter(Boolean).join(" ").toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2);
-  return [...listings].sort((a, b) => {
-    const score = (item) => {
-      const text = `${item.title} ${item.snippet || ""}`.toLowerCase();
-      return hints.filter((term) => text.includes(term)).length;
-    };
-    return score(b) - score(a);
-  });
+  // Research depends only on the title, including its cache and stale-response checks.
+  return String(state.itemName || "").trim().replace(/\s+/g, " ").slice(0, 120);
 }
 
 function initNewListingPage() {
@@ -1975,18 +1937,7 @@ function initNewListingPage() {
   }
 
   function buildCompQuery(state) {
-    const titleWords = String(state.itemName || "").trim().split(/\s+/).filter(Boolean);
-    const product = state.productType || state.itemType || (titleWords.length < 2 && state.category ? prettyCategory(state.category).split(/[&,/]/)[0].trim() : "");
-    const identity = state.itemName || product;
-    const words = [state.brand, identity, product, state.styleModel, state.color, state.keyFeatures, state.material, state.gender, state.size]
-      .filter(Boolean).join(" ").trim().split(/\s+/);
-    const seen = new Set();
-    return words.filter((word) => {
-      const token = word.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (!token || seen.has(token)) return false;
-      seen.add(token);
-      return true;
-    }).join(" ").slice(0, 180);
+    return buildGeneralResearchQuery(state);
   }
 
   function getPricingGuide(state) {
@@ -2031,7 +1982,7 @@ function initNewListingPage() {
   function renderMarketResearch(research) {
     displayedResearchQuery = research.query;
     nodes.compResults.replaceChildren();
-    rankResearchListings(research.listings, getFormState()).forEach((comp) => {
+    research.listings.forEach((comp) => {
       const card = document.createElement("div");
       card.className = "border rounded p-2 small";
       const link = document.createElement("a");
@@ -2209,14 +2160,13 @@ function initNewListingPage() {
     nodes.runApiResearchBtn.addEventListener("click", async () => {
       const state = getFormState();
       const query = buildCompQuery(state);
-      const hasDescriptiveTitle = state.itemName.trim().split(/\s+/).filter(Boolean).length >= 2;
-      if (!hasDescriptiveTitle && !(state.brand && (state.category || state.productType || state.itemType))) {
-        nodes.compStatus.textContent = "Enter a descriptive title, or add a brand and category, before researching.";
+      if (query.length < 4) {
+        nodes.compStatus.textContent = "Enter an item title (at least 4 characters) before researching.";
         return;
       }
       if (marketResearch?.query === query && marketResearch.listings?.length > 0 && Date.now() - Date.parse(marketResearch.searchedAt) < 86400000 && !marketResearch.warnings?.length) {
         renderMarketResearch(marketResearch);
-        nodes.compStatus.textContent = marketResearch.listings.length ? "" : "No indexed listing leads found. Try a shorter title with the brand and product or model.";
+        nodes.compStatus.textContent = marketResearch.listings.length ? "" : "The search provider returned no usable listing results. This can be a temporary provider issue. Try Open Market Search, or retry with a shorter title.";
         return;
       }
       const requestId = ++researchRequestId;
@@ -2243,7 +2193,7 @@ function initNewListingPage() {
         marketResearch = data;
         selectedResearchTerms = [];
         renderMarketResearch(data);
-        nodes.compStatus.textContent = data.warnings?.join(" ") || (data.listings.length ? "" : "No indexed listing leads found. Try a shorter title with the brand and product or model.");
+        nodes.compStatus.textContent = data.warnings?.join(" ") || (data.listings.length ? "" : "The search provider returned no usable listing results. This can be a temporary provider issue. Try Open Market Search, or retry with a shorter title.");
         updatePreview();
       } catch (error) {
         if (requestId === researchRequestId) nodes.compStatus.textContent = error.message || "Research unavailable. Please retry.";

@@ -60,6 +60,33 @@ class ResearchTests(unittest.TestCase):
         self.assertNotIn("Size 11", query)
         self.assertLessEqual(len(query.split()), 8)  # site operator plus seven item words
 
+    def test_empty_provider_success_retries_broader_title_query(self):
+        empty = {"search_metadata": {"status": "Success"},
+                 "search_information": {"organic_results_state": "Fully empty"},
+                 "error": "Google hasn't returned any results for this query."}
+        found = {"organic_results": [{"link": "https://ebay.com/itm/123",
+                                     "title": "New Balance sneakers"}]}
+        with patch.object(market, "urlopen", side_effect=[io.BytesIO(json.dumps(empty).encode()),
+                                                           io.BytesIO(json.dumps(found).encode())]) as request:
+            listings = market.search_market("New Balance sneakers blue suede", "ebay.com", "test")
+        self.assertEqual(len(listings), 1)
+        queries = [parse_qs(urlparse(call.args[0]).query)["q"][0] for call in request.call_args_list]
+        self.assertEqual(queries[1], "site:ebay.com New Balance sneakers")
+        self.assertEqual(request.call_count, 2)
+
+    def test_provider_credential_error_is_not_retried(self):
+        with patch.object(market, "urlopen", return_value=io.BytesIO(b'{"error":"Invalid API key"}')) as request:
+            with self.assertRaisesRegex(ValueError, "provider rejected"):
+                market.search_market("New Balance sneakers", "ebay.com", "test")
+        self.assertEqual(request.call_count, 1)
+
+    def test_good_results_do_not_use_extra_search_credits(self):
+        payload = {"organic_results": [{"link": "https://poshmark.com/listing/abc",
+                                        "title": "New Balance sneakers"}]}
+        with patch.object(market, "urlopen", return_value=io.BytesIO(json.dumps(payload).encode())) as request:
+            self.assertEqual(len(market.search_market("New Balance sneakers", "poshmark.com", "test")), 1)
+        self.assertEqual(request.call_count, 1)
+
     def test_empty_results_are_not_cached(self):
         with patch.object(market, "search_market", return_value=[]) as search:
             first = market.research("Nike shoes", "test")

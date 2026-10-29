@@ -85,14 +85,28 @@ def search_market(query, domain, key):
     # Indexed listings often omit the word "sold" even when a sale occurred.
     # Retrieve listing leads; users verify sale status on the original page.
     path = "itm" if domain == "ebay.com" else "listing"
-    params = urlencode({"engine": "google", "q": f'site:{domain}/{path}/ {focused_search_query(query)}',
-                        "api_key": key, "gl": "us", "hl": "en"})
-    # Never log this URL: it contains the private key.
-    with urlopen("https://serpapi.com/search.json?" + params, timeout=20) as response:
-        payload = json.load(response)
-    if payload.get("error"):
-        raise ValueError("Search provider rejected the request. Check your key and search allowance.")
-    return normalize_results(payload.get("organic_results", []), domain, query)
+    focused = focused_search_query(query)
+    # One fallback per marketplace: remove the URL-path restriction and shorten
+    # the title. All accepted results still must be individual marketplace pages.
+    searches = [f"site:{domain}/{path}/ {focused}",
+                f"site:{domain} {' '.join(focused.split()[:3])}"]
+    for search in searches:
+        params = urlencode({"engine": "google", "q": search,
+                            "api_key": key, "gl": "us", "hl": "en"})
+        # Never log this URL: it contains the private key.
+        with urlopen("https://serpapi.com/search.json?" + params, timeout=18) as response:
+            payload = json.load(response)
+        # SerpApi can return an `error` alongside status=Success for genuinely
+        # empty Google results. Retry those, but never retry credential/quota errors.
+        empty_success = (payload.get("search_metadata", {}).get("status") == "Success"
+                         and "empty" in str(payload.get("search_information", {}).get("organic_results_state", "")).lower()
+                         and not payload.get("organic_results"))
+        if payload.get("error") and not empty_success:
+            raise ValueError("Search provider rejected the request. Check your key and search allowance.")
+        listings = normalize_results(payload.get("organic_results", []), domain, query)
+        if listings:
+            return listings
+    return []
 
 
 def research(query, key, search_query=None):
@@ -157,11 +171,11 @@ class handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             query = " ".join(str(data.get("query", "")).split())
             if not 4 <= len(query) <= 180:
-                return self.reply(400, {"error": "Enter a specific brand and item type (4–180 characters)."})
+                return self.reply(400, {"error": "Enter an item title (4–180 characters)."})
             search_query = data.get("searchQuery")
             if search_query is not None:
                 if not isinstance(search_query, str) or not 4 <= len(search_query.strip()) <= 120:
-                    return self.reply(400, {"error": "Enter a brand and product type, or a descriptive title."})
+                    return self.reply(400, {"error": "Enter an item title (4–120 characters)."})
                 return self.reply(200, research(query, key, search_query.strip()))
             return self.reply(200, research(query, key))
         except (ValueError, TypeError, AttributeError) as error:

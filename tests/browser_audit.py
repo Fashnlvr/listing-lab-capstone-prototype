@@ -232,7 +232,7 @@ with sync_playwright() as pw:
   calls=[]
   def mock(route):
    data=route.request.post_data_json;calls.append(data['query']);route.fulfill(json={'query':data['query'],'searchedAt':'2026-10-28T00:00:00Z','warnings':[],'listings':[],'terms':[]})
-  p.route('**/api/market_research',mock);goto(p);p.locator('#runApiResearchBtn').click();assert 'descriptive title' in p.locator('#compStatus').inner_text()
+  p.route('**/api/market_research',mock);goto(p);p.locator('#runApiResearchBtn').click();assert 'Enter an item title' in p.locator('#compStatus').inner_text()
   p.locator('#itemName').fill('New Balance Numeric Shoes');p.locator('#runApiResearchBtn').click();p.wait_for_function("!document.querySelector('#runApiResearchBtn').disabled");assert calls==['New Balance Numeric Shoes']
  def static_backend_error(p,c):
   p.route('**/api/market_research',lambda route:route.fulfill(status=405,body='Not allowed',content_type='text/html'))
@@ -243,7 +243,7 @@ with sync_playwright() as pw:
    query=route.request.post_data_json['query'];calls.append(query)
    listings=[] if len(calls)==1 else [{'title':'Air Zoom Pegasus Sneakers','url':'https://www.ebay.com/itm/123','marketplace':'eBay','snippet':'Nike running shoes, listing lead','matchType':'related','soldVerified':False,'displayedPrice':None}]
    route.fulfill(json={'query':query,'searchedAt':'2099-01-01T00:00:00Z','warnings':[],'listings':listings,'terms':[]})
-  p.route('**/api/market_research',mock);goto(p);p.locator('#itemName').fill('Nike Air Max Shoes');p.locator('#runApiResearchBtn').click();p.wait_for_function("document.querySelector('#compStatus').textContent.includes('No indexed listing leads')")
+  p.route('**/api/market_research',mock);goto(p);p.locator('#itemName').fill('Nike Air Max Shoes');p.locator('#runApiResearchBtn').click();p.wait_for_function("document.querySelector('#compStatus').textContent.includes('no usable listing results')")
   p.locator('#runApiResearchBtn').click();p.locator('#compResults a').wait_for();assert len(calls)==2,'Empty search must not block retries'
   assert 'Related listing' in p.locator('#compResults a').text_content();p.locator('#runApiResearchBtn').click();assert len(calls)==2,'Nonempty results should still reuse research'
  def required_research_fields(p,c):
@@ -255,7 +255,8 @@ with sync_playwright() as pw:
      {'title':'New Balance 440 V2 sneakers','url':'https://ebay.com/itm/440','marketplace':'eBay','snippet':'Related sneakers','matchType':'related','soldVerified':False}], 'terms':[]})
   p.route('**/api/market_research',mock);goto(p);p.locator('#itemName').fill('New Balance sneakers');p.locator('#brand').fill('New Balance');p.locator('#category').select_option('shoes');p.locator('summary').filter(has_text='Additional Details').click();p.locator('#productType').fill('boots');p.locator('#styleModel').fill('440 V2');p.locator('#material').fill('suede');p.locator('#runApiResearchBtn').click();p.locator('#compResults a').first.wait_for()
   assert sent[0]['searchQuery']=='New Balance sneakers';assert p.locator('#compResults a').count()==2
-  assert '440' in p.locator('#compResults a').first.text_content()
+  assert '420' in p.locator('#compResults a').first.text_content()
+  p.locator('#brand').fill('');p.locator('#category').select_option('');p.locator('#styleModel').fill('different optional model');p.locator('#runApiResearchBtn').click();assert len(sent)==1,'Other fields must not change research or its cache'
  for name,fn in [('pages and responsive layouts',smoke),('deep purple theme consistency',purple_theme),('content typography and menu consistency',content_typography),('fresh navigation and draft load',fresh),('manual comp median and persistence',comps),('all photo categories and tracking',photos),('description regeneration',description),('template substitution and keyword merge',template),('save/edit/status preservation',edit),('dashboard product search',search),('storage failure handling',storage),('pricing and cost validation',pricing),('pricing handoff and spreadsheet export',pricing_handoff_export),('research title validation',research_title_validation),('required research fields and soft refinement',required_research_fields),('related research results and retry',related_research_retry),('static research backend error',static_backend_error),('API UI, caching and reset',research),('CSV JSON selected exports',exports),('platform form exports and copy fields',platform_exports),('template CRUD and SKU settings',templateLibrary),('per-item SKU edits and auto sequence',item_skus),('clipboard copy buttons',copies),('API error recovery',research_error),('marketplace sold links and tabs',popup_links),('distinct draft identities',draft_identity),('inventory backup recovery and import',inventory_recovery),('template storage failure',template_storage),('mobile navigation dropdowns',mobile_navigation),('dashboard CRUD selection and detail',dashboard_actions),('original dashboard appearance',original_dashboard)]:
   if len(sys.argv)<2 or sys.argv[1] in name:run(name,fn)
  browser.close()
