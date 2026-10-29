@@ -14,7 +14,9 @@ The Python server replaces Live Server or `python3 -m http.server` when using re
 
 ## Use the results
 
-Research uses only the Title field. It requests up to 60 eBay search results directly through SerpApi’s eBay engine, and searches indexed Poshmark listing pages through Google. If a marketplace yields fewer than 10 unique relevant leads, it supplements eBay with Google or Poshmark with Bing and merges unique listings. These are listing leads, including available items. SerpApi’s old eBay Sold/Complete filters are no longer supported. Brand, Category and Additional Details do not affect research queries, ranking or cache identity. The same results feed comparable listing cards and repeated wording suggestions. Search results are leads, not authenticated sales data, search-volume measurements or proof of a trend.
+Research uses only the Title field. It searches Google for individual eBay and Poshmark listing pages with the word “sold”. If fewer than 10 relevant leads are found, it supplements using Bing and a shorter title, still requiring sold-status evidence. Brand, Category and Additional Details do not affect queries or ranking. The same accepted results feed comp cards and wording suggestions.
+
+Active eBay inventory is not requested: SerpApi no longer supports its old Sold/Complete filters. Search results must contain an explicit sold-status signal such as “sold out”, “this listing sold”, or a SOLD status badge. Units sold on an active listing, “sold by”, ended/unsold listings and ordinary available listings do not qualify. These are labeled **Sold lead**, not verified sales: a cached snippet may be stale. Confirm status and transaction price on the source before adding a comp. Search coverage can be lower than each marketplace’s own sold search; the app never fills missing results with active inventory.
 
 - Open a source listing and check whether it sold. Enter the verified sale price in USD, confirm the checkbox and select **Add to comps**. **Apply Comp Median** uses those verified prices and any manually entered comp values.
 - Select market wording that accurately describes your item. Selected terms automatically enter Keywords and Tags; unconfirmed terms never enter item descriptions.
@@ -40,4 +42,6 @@ Supplemental searches run when fewer than 10 relevant unique listings are found,
 
 The response includes safe diagnostics per attempt: engine, public query, returned page count and accepted listing count. This distinguishes an empty provider response from unrelated or non-listing pages rejected by the app. No provider URLs, credentials or raw errors are exposed.
 
-Direct eBay result prices are asking prices, not verified sale prices. Poshmark still depends on search-engine indexing, so the number of leads can be lower than results visible inside Poshmark itself. No minimum number of live results is guaranteed. See [SerpApi eBay Search](https://serpapi.com/ebay-search-api).
+Old research from the active-inventory version is invalidated in both browser drafts and the server cache. Existing inventory records and manually entered comp prices are preserved. A frontend/backend version mismatch shows an error rather than displaying active results.
+
+See [SerpApi eBay Search](https://serpapi.com/ebay-search-api) for the deprecated Sold/Complete filters.

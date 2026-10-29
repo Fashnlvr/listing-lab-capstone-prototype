@@ -237,7 +237,7 @@ class FrontendTests(unittest.TestCase):
 
     def test_research_empty_message_distinguishes_missing_and_filtered_results(self):
         self.evaluate("""
-            check(researchEmptyMessage({diagnostics:[{returned:0},{returned:0}]}).includes('zero listing results'),'provider empty');
+            check(researchEmptyMessage({diagnostics:[{returned:0},{returned:0}]}).includes('clear sold status'),'provider empty');
             check(researchEmptyMessage({diagnostics:[{returned:5},{returned:3}]}).includes('8 pages'),'filtered results');
             check(researchEmptyMessage({}).includes('no usable listing results'),'older backend supported');
         """)

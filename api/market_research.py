@@ -43,6 +43,18 @@ def relevance_words(text):
     return words
 
 
+def has_sold_status(title, snippet):
+    """Explicit sold-status evidence, not units sold on an active listing."""
+    text = title + " " + snippet
+    if re.search(r"\b(?:not sold|unsold|still available|available for purchase|buy it now|add to (?:cart|bag)|sold for (?:parts|repair)|sold as is)\b", text, re.I):
+        return False
+    if re.search(r"\b(?:sold out|(?:item|listing)\s+(?:(?:has been|has|is|was)\s+)?sold|sold (?:on|for))\b", text, re.I):
+        return True
+    # Leading status badges such as SOLD Nike, [SOLD], or Sold: $45.
+    return any(re.search(r"^\s*[\[(]?sold[\])]?(?!\s+(?:by|separately|as|listings?)\b)(?:\s|$|[:|·–—-])", value, re.I)
+               for value in (title, snippet))
+
+
 def normalize_results(results, domain, query):
     """Search snippets provide leads, never verified transaction prices."""
     normalized = []
@@ -58,6 +70,8 @@ def normalize_results(results, domain, query):
             continue
         title = str(result.get("title", ""))[:300]
         snippet = str(result.get("snippet", ""))[:800]
+        if not has_sold_status(title, snippet):
+            continue
         matches = required & relevance_words(title + " " + snippet)
         if not required or len(matches) < min(2, len(required)):
             continue
@@ -77,7 +91,7 @@ def normalize_results(results, domain, query):
                            "displayedPrice": price, "soldVerified": False,
                            "matchType": "similar" if relevance >= 0.6 else "related",
                            "relevance": relevance,
-                           "soldHint": bool(re.search(r"\bsold\b", title + " " + snippet, re.I))})
+                           "soldHint": True, "soldEvidence": "search-text"})
     return sorted(normalized, key=lambda item: (item["relevance"], item["soldHint"]), reverse=True)
 
 
@@ -92,19 +106,14 @@ class SearchResults(list):
 def search_market(query, domain, key):
     focused = focused_search_query(query)
     broad = " ".join(focused.split()[:3])
-    if domain == "ebay.com":
-        searches = [("ebay", focused), ("google", f"site:{domain}/itm/ {broad}")]
-    else:
-        searches = [("google", f"site:{domain}/listing/ {focused}"),
-                    ("bing", f"site:{domain}/listing/ {broad}")]
+    path = "itm" if domain == "ebay.com" else "listing"
+    searches = [("google", f'site:{domain}/{path}/ {focused} "sold"'),
+                ("bing", f'site:{domain}/{path}/ {broad} "sold"')]
     attempts, collected, warnings = [], {}, []
     for engine, search in searches:
         params = {"engine": engine, "api_key": key}
-        if engine == "ebay":
-            params.update({"_nkw": search, "ebay_domain": "ebay.com", "_ipg": 60})
-        else:
-            params["q"] = search
-            params.update({"gl": "us", "hl": "en"} if engine == "google" else {"mkt": "en-US"})
+        params["q"] = search
+        params.update({"gl": "us", "hl": "en"} if engine == "google" else {"mkt": "en-US"})
         try:
             # Never log this URL: it contains the private key.
             with urlopen("https://serpapi.com/search.json?" + urlencode(params), timeout=18) as response:
@@ -120,16 +129,7 @@ def search_market(query, domain, key):
             warnings.append(f"{domain}: additional search unavailable; showing the listings already found.")
             break
         organic = payload.get("organic_results", [])
-        rows = organic
-        if engine == "ebay":
-            rows = []
-            for row in organic:
-                price = row.get("price", {})
-                raw_price = price.get("raw", "") if isinstance(price, dict) else ""
-                snippet = " · ".join(str(value) for value in
-                                     (row.get("subtitle"), row.get("condition"), raw_price) if value)
-                rows.append({**row, "snippet": f"Available listing · {snippet}. Asking price; verify sale status."})
-        listings = normalize_results(rows, domain, query)
+        listings = normalize_results(organic, domain, query)
         attempts.append({"marketplace": domain, "engine": engine, "query": search,
                          "returned": len(organic), "accepted": len(listings)})
         for listing in listings:
@@ -148,7 +148,7 @@ def search_market(query, domain, key):
 
 def research(query, key, search_query=None):
     broad_query = focused_search_query(search_query or query)
-    cache_key = "marketplace-v3:" + broad_query.casefold()
+    cache_key = "sold-leads-v1:" + broad_query.casefold()
     with _lock:
         now = time.time()
         cached = _cache.get(cache_key)
@@ -178,7 +178,7 @@ def research(query, key, search_query=None):
         words = set(re.findall(r"[a-z][a-z-]{2,}", listing["title"].lower()))
         counts.update(words - STOPWORDS)
     terms = [{"term": word, "listingCount": count} for word, count in counts.most_common(24) if count >= 2]
-    result = {"query": query, "searchQuery": broad_query, "listings": listings, "terms": terms, "warnings": warnings,
+    result = {"researchMode": "sold-leads-v1", "query": query, "searchQuery": broad_query, "listings": listings, "terms": terms, "warnings": warnings,
               "cacheTtlSeconds": 86400 if all(sum(item.get("marketplace") == name for item in listings) >= 10 for name in ("eBay", "Poshmark")) else 300,
               "diagnostics": diagnostics, "searchedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "cached": False}
     if not warnings and listings:

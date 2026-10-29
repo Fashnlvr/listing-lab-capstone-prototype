@@ -23,7 +23,7 @@ class ResearchTests(unittest.TestCase):
 
     def test_ambiguous_prices_are_not_selected(self):
         rows = [{"link": "https://poshmark.com/listing/123", "title": "Nike shoes",
-                 "snippet": "$100 original price, $35 asking"}]
+                 "snippet": "Sold out. $100 original price, $35 asking"}]
         self.assertIsNone(market.normalize_results(rows, "poshmark.com", "Nike")[0]["displayedPrice"])
 
     def test_no_price_is_not_zero(self):
@@ -32,23 +32,23 @@ class ResearchTests(unittest.TestCase):
 
     def test_related_matches_use_snippets_and_not_an_exact_first_word(self):
         rows = [{"link": "https://ebay.com/itm/123", "title": "Air Zoom Pegasus Sneakers",
-                 "snippet": "Nike running trainers in navy. Available listing."}]
+                 "snippet": "Nike running trainers in navy. This listing sold."}]
         items = market.normalize_results(rows, "ebay.com", "Nike running shoes blue size 10")
         self.assertEqual(len(items), 1)
         self.assertFalse(items[0]["soldVerified"])
         self.assertIn(items[0]["matchType"], ("similar", "related"))
 
     def test_listing_variations_are_deduplicated(self):
-        rows = [{"link": url, "title": "Nike running shoes"} for url in (
+        rows = [{"link": url, "title": "Nike running shoes", "snippet": "This item sold"} for url in (
             "https://ebay.com/itm/Nike-Running-Shoes/123?tracking=one",
             "https://www.ebay.com/itm/123?tracking=two")]
         self.assertEqual(len(market.normalize_results(rows, "ebay.com", "Nike shoes")), 1)
 
     def test_product_numbers_match_different_spacing(self):
-        rows = [{"link": "https://ebay.com/itm/123", "title": "New Balance 440v2 Sneakers"}]
+        rows = [{"link": "https://ebay.com/itm/123", "title": "New Balance 440v2 Sneakers", "snippet": "Sold out"}]
         self.assertEqual(len(market.normalize_results(rows, "ebay.com", "New Balance Numeric 440 V2 Shoes")), 1)
 
-    def test_queries_are_short_and_do_not_require_sold_word(self):
+    def test_queries_are_short_and_target_sold_listings(self):
         class Response:
             def __enter__(self): return self
             def __exit__(self, *args): return False
@@ -56,7 +56,7 @@ class ResearchTests(unittest.TestCase):
         with patch.object(market, "urlopen", return_value=Response()) as request:
             market.search_market("New Balance Numeric 440 V2 Dark Olivine Black Skate Shoes Mens Size 11", "ebay.com", "test")
         query = parse_qs(urlparse(request.call_args.args[0]).query)["q"][0]
-        self.assertNotIn('"sold"', query)
+        self.assertIn('"sold"', query)
         self.assertNotIn("Size 11", query)
         self.assertLessEqual(len(query.split()), 8)  # site operator plus seven item words
 
@@ -65,17 +65,16 @@ class ResearchTests(unittest.TestCase):
                  "search_information": {"organic_results_state": "Fully empty"},
                  "error": "Google hasn't returned any results for this query."}
         found = {"organic_results": [{"link": "https://ebay.com/itm/123",
-                                     "title": "New Balance sneakers"}]}
+                                     "title": "New Balance sneakers", "snippet": "Sold out"}]}
         with patch.object(market, "urlopen", side_effect=[io.BytesIO(json.dumps(empty).encode()),
                                                            io.BytesIO(json.dumps(found).encode())]) as request:
             listings = market.search_market("New Balance sneakers blue suede", "ebay.com", "test")
         self.assertEqual(len(listings), 1)
         parameters = [parse_qs(urlparse(call.args[0]).query) for call in request.call_args_list]
-        self.assertEqual(parameters[0]["engine"], ["ebay"])
-        self.assertEqual(parameters[0]["_ipg"], ["60"])
-        self.assertEqual(parameters[1]["engine"], ["google"])
-        self.assertEqual(parameters[1]["q"], ["site:ebay.com/itm/ New Balance sneakers"])
-        self.assertEqual(listings[0]["searchEngine"], "google")
+        self.assertEqual(parameters[0]["engine"], ["google"])
+        self.assertEqual(parameters[1]["engine"], ["bing"])
+        self.assertEqual(parameters[1]["q"], ['site:ebay.com/itm/ New Balance sneakers "sold"'])
+        self.assertEqual(listings[0]["searchEngine"], "bing")
         self.assertEqual([attempt["returned"] for attempt in listings.attempts], [0, 1])
         self.assertNotIn("api_key", json.dumps(listings.attempts))
         self.assertEqual(request.call_count, 2)
@@ -88,7 +87,7 @@ class ResearchTests(unittest.TestCase):
 
     def test_good_results_do_not_use_extra_search_credits(self):
         payload = {"organic_results": [{"link": f"https://poshmark.com/listing/abc{i}",
-                                        "title": "New Balance sneakers"} for i in range(10)]}
+                                        "title": "New Balance sneakers", "snippet": "Sold out"} for i in range(10)]}
         with patch.object(market, "urlopen", return_value=io.BytesIO(json.dumps(payload).encode())) as request:
             self.assertEqual(len(market.search_market("New Balance sneakers", "poshmark.com", "test")), 10)
         self.assertEqual(request.call_count, 1)
@@ -104,9 +103,9 @@ class ResearchTests(unittest.TestCase):
         self.assertNotIn("private-placeholder", json.dumps(listings.attempts))
 
     def test_sparse_results_are_supplemented_and_deduplicated(self):
-        first = {"organic_results": [{"link": "https://poshmark.com/listing/a", "title": "New Balance sneakers"}]}
-        second = {"organic_results": [{"link": "https://poshmark.com/listing/a?tracking=1", "title": "New Balance sneakers"},
-                                      {"link": "https://poshmark.com/listing/b", "title": "New Balance sneakers"}]}
+        first = {"organic_results": [{"link": "https://poshmark.com/listing/a", "title": "New Balance sneakers", "snippet": "Sold out"}]}
+        second = {"organic_results": [{"link": "https://poshmark.com/listing/a?tracking=1", "title": "New Balance sneakers", "snippet": "Sold out"},
+                                      {"link": "https://poshmark.com/listing/b", "title": "New Balance sneakers", "snippet": "Sold out"}]}
         with patch.object(market, "urlopen", side_effect=[io.BytesIO(json.dumps(p).encode()) for p in (first, second)]) as request:
             listings = market.search_market("New Balance sneakers", "poshmark.com", "test")
         self.assertEqual(len(listings), 2)
@@ -114,15 +113,23 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(params["engine"], ["bing"])
         self.assertEqual(params["mkt"], ["en-US"])
 
-    def test_native_ebay_returns_large_sample_with_unverified_asking_prices(self):
-        payload = {"organic_results": [{"link": f"https://ebay.com/itm/{1000+i}", "title": "New Balance sneakers",
-                                        "price": {"raw": "$45.00", "extracted": 45}, "condition": "Pre-Owned"} for i in range(60)]}
-        with patch.object(market, "urlopen", return_value=io.BytesIO(json.dumps(payload).encode())) as request:
-            listings = market.search_market("New Balance sneakers", "ebay.com", "test")
-        self.assertEqual(len(listings), 60)
-        self.assertEqual(request.call_count, 1)
-        self.assertTrue(all(item["displayedPrice"] == 45 and not item["soldVerified"] for item in listings))
-        self.assertIn("Asking price", listings[0]["snippet"])
+    def test_active_listings_and_units_sold_are_excluded(self):
+        snippets = ["Available listing. $45.00", "Buy it now. 120 sold", "25 sold", "Sold by a trusted seller",
+                    "Sold separately", "Sold for parts", "Sold as is", "Not sold", "This listing has ended", "Out of stock", "Unsold",
+                    "This listing sold on October 12. $45.00", "Sold out", "[SOLD] $45.00"]
+        rows = [{"link": f"https://ebay.com/itm/{1000+i}", "title": "New Balance sneakers", "snippet": snippet}
+                for i, snippet in enumerate(snippets)]
+        items = market.normalize_results(rows, "ebay.com", "New Balance sneakers")
+        self.assertEqual(len(items), 3)
+        self.assertTrue(all(item["soldHint"] and not item["soldVerified"] for item in items))
+
+    def test_native_active_inventory_is_never_requested(self):
+        with patch.object(market, "urlopen", side_effect=[io.BytesIO(b'{"organic_results": []}'), io.BytesIO(b'{"organic_results": []}')]) as request:
+            market.search_market("New Balance sneakers", "ebay.com", "test")
+        for call in request.call_args_list:
+            params = parse_qs(urlparse(call.args[0]).query)
+            self.assertIn(params["engine"][0], ("google", "bing"))
+            self.assertIn('"sold"', params["q"][0])
 
     def test_sparse_cache_expires_in_five_minutes(self):
         with patch.object(market, "time") as clock, patch.object(market, "search_market", return_value=[{"title": "Nike shoes"}]):
@@ -133,7 +140,7 @@ class ResearchTests(unittest.TestCase):
             self.assertFalse(market.research("Nike shoes", "test")["cached"])
 
     def test_supplement_failure_preserves_initial_listings(self):
-        payload = {"organic_results": [{"link": "https://poshmark.com/listing/a", "title": "New Balance sneakers"}]}
+        payload = {"organic_results": [{"link": "https://poshmark.com/listing/a", "title": "New Balance sneakers", "snippet": "Sold out"}]}
         with patch.object(market, "urlopen", side_effect=[io.BytesIO(json.dumps(payload).encode()), OSError("private-url")]):
             listings = market.search_market("New Balance sneakers", "poshmark.com", "test")
         self.assertEqual(len(listings), 1)
@@ -150,7 +157,7 @@ class ResearchTests(unittest.TestCase):
         self.assertFalse(market._cache)
 
     def test_broad_query_is_used_and_reused_for_optional_variations(self):
-        with patch.object(market, "search_market", return_value=[{"title": "New Balance sneakers"}]) as search:
+        with patch.object(market, "search_market", return_value=[{"title": "New Balance sneakers", "snippet": "Sold out"}]) as search:
             first = market.research("New Balance 440 suede size 11", "test", "New Balance sneakers")
             second = market.research("New Balance 420 mesh size 9", "test", "New Balance sneakers")
         self.assertEqual(search.call_count, 2)

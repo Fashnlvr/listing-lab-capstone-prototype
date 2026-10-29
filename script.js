@@ -1521,8 +1521,8 @@ function researchEmptyMessage(research) {
   if (!attempts.length) return "The search provider returned no usable listing results. Try Open Market Search or a shorter title.";
   const returned = attempts.reduce((sum, attempt) => sum + (Number(attempt.returned) || 0), 0);
   return returned
-    ? `Search returned ${returned} pages, but none were relevant individual eBay or Poshmark listings. Try a shorter title or Open Market Search.`
-    : "The marketplace searches returned zero listing results through the API. Try Open Market Search or check the searches in your SerpApi dashboard.";
+    ? `Search returned ${returned} pages, but none had both relevant item details and clear sold status. Try a shorter title or Open Market Search.`
+    : "No listings with clear sold status were found through the API. Try Open Market Search or check the searches in your SerpApi dashboard.";
 }
 
 function initNewListingPage() {
@@ -1669,7 +1669,7 @@ function initNewListingPage() {
     if (pricingPlan?.inputs) {
       try { state.pricingPlan = calculateResalePricing(pricingPlan.inputs, state.price); } catch { state.pricingPlan = null; }
     }
-    const researchMatches = marketResearch && marketResearch.query === buildCompQuery(state);
+    const researchMatches = marketResearch?.researchMode === "sold-leads-v1" && marketResearch.query === buildCompQuery(state);
     state.marketResearch = researchMatches ? marketResearch : null;
     state.researchTerms = researchMatches ? selectedResearchTerms : [];
     const suggestions = buildSearchSuggestions(state);
@@ -1679,8 +1679,8 @@ function initNewListingPage() {
   }
 
   function setFormState(state) {
-    marketResearch = state.marketResearch || null;
-    selectedResearchTerms = Array.isArray(state.researchTerms) ? [...state.researchTerms] : [];
+    marketResearch = state.marketResearch?.researchMode === "sold-leads-v1" ? state.marketResearch : null;
+    selectedResearchTerms = marketResearch && Array.isArray(state.researchTerms) ? [...state.researchTerms] : [];
     displayedResearchQuery = "";
     researchRequestId++;
     currentDraftId = state.__draftId || uid();
@@ -2002,7 +2002,7 @@ function initNewListingPage() {
       link.href = parsed.href;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
-      link.textContent = `${comp.marketplace}${comp.matchType ? ` · ${comp.matchType === "similar" ? "Similar" : "Related"} listing` : ""}: ${comp.title}`;
+      link.textContent = `${comp.marketplace} · Sold lead${comp.matchType ? ` · ${comp.matchType === "similar" ? "Similar" : "Related"} listing` : ""}: ${comp.title}`;
       const snippet = document.createElement("p");
       snippet.className = "mb-2";
       snippet.textContent = comp.snippet;
@@ -2173,7 +2173,7 @@ function initNewListingPage() {
         nodes.compStatus.textContent = "Enter an item title (at least 4 characters) before researching.";
         return;
       }
-      if (marketResearch?.query === query && marketResearch.listings?.length > 0 && Date.now() - Date.parse(marketResearch.searchedAt) < (marketResearch.cacheTtlSeconds || 300) * 1000 && !marketResearch.warnings?.length) {
+      if (marketResearch?.researchMode === "sold-leads-v1" && marketResearch.query === query && marketResearch.listings?.length > 0 && Date.now() - Date.parse(marketResearch.searchedAt) < (marketResearch.cacheTtlSeconds || 300) * 1000 && !marketResearch.warnings?.length) {
         renderMarketResearch(marketResearch);
         nodes.compStatus.textContent = marketResearch.listings.length ? "" : "The search provider returned no usable listing results. This can be a temporary provider issue. Try Open Market Search, or retry with a shorter title.";
         return;
@@ -2199,6 +2199,7 @@ function initNewListingPage() {
         if (!response.ok) throw new Error(data.error || "Research unavailable.");
         if (requestId !== researchRequestId || buildCompQuery(getFormState()) !== query) return;
         if (!Array.isArray(data.listings) || !Array.isArray(data.terms) || data.query !== query) throw new Error("Invalid research response.");
+        if (data.researchMode !== "sold-leads-v1") throw new Error("The research backend still includes active listings. Deploy the latest sold-listing update, then retry.");
         marketResearch = data;
         selectedResearchTerms = [];
         renderMarketResearch(data);
