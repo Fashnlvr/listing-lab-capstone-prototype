@@ -1516,6 +1516,15 @@ function buildGeneralResearchQuery(state) {
   return String(state.itemName || "").trim().replace(/\s+/g, " ").slice(0, 120);
 }
 
+function researchEmptyMessage(research) {
+  const attempts = Array.isArray(research.diagnostics) ? research.diagnostics : [];
+  if (!attempts.length) return "The search provider returned no usable listing results. Try Open Market Search or a shorter title.";
+  const returned = attempts.reduce((sum, attempt) => sum + (Number(attempt.returned) || 0), 0);
+  return returned
+    ? `Search returned ${returned} pages, but none were relevant individual eBay or Poshmark listings. Try a shorter title or Open Market Search.`
+    : "The marketplace searches returned zero listing results through the API. Try Open Market Search or check the searches in your SerpApi dashboard.";
+}
+
 function initNewListingPage() {
   if (!pageHas("#listingForm")) return;
 
@@ -2164,7 +2173,7 @@ function initNewListingPage() {
         nodes.compStatus.textContent = "Enter an item title (at least 4 characters) before researching.";
         return;
       }
-      if (marketResearch?.query === query && marketResearch.listings?.length > 0 && Date.now() - Date.parse(marketResearch.searchedAt) < 86400000 && !marketResearch.warnings?.length) {
+      if (marketResearch?.query === query && marketResearch.listings?.length > 0 && Date.now() - Date.parse(marketResearch.searchedAt) < (marketResearch.cacheTtlSeconds || 300) * 1000 && !marketResearch.warnings?.length) {
         renderMarketResearch(marketResearch);
         nodes.compStatus.textContent = marketResearch.listings.length ? "" : "The search provider returned no usable listing results. This can be a temporary provider issue. Try Open Market Search, or retry with a shorter title.";
         return;
@@ -2193,7 +2202,7 @@ function initNewListingPage() {
         marketResearch = data;
         selectedResearchTerms = [];
         renderMarketResearch(data);
-        nodes.compStatus.textContent = data.warnings?.join(" ") || (data.listings.length ? "" : "The search provider returned no usable listing results. This can be a temporary provider issue. Try Open Market Search, or retry with a shorter title.");
+        nodes.compStatus.textContent = data.warnings?.join(" ") || (data.listings.length ? "" : researchEmptyMessage(data));
         updatePreview();
       } catch (error) {
         if (requestId === researchRequestId) nodes.compStatus.textContent = error.message || "Research unavailable. Please retry.";

@@ -1,4 +1,4 @@
-"""Server-only Google research via SerpApi. Never return upstream credentials."""
+"""Server-only marketplace research via SerpApi. Never return upstream credentials."""
 import json
 import os
 import re
@@ -81,57 +81,97 @@ def normalize_results(results, domain, query):
     return sorted(normalized, key=lambda item: (item["relevance"], item["soldHint"]), reverse=True)
 
 
+class SearchResults(list):
+    """Listing leads plus safe counts, without provider URLs or credentials."""
+    def __init__(self, listings=(), attempts=(), warnings=()):
+        super().__init__(listings)
+        self.attempts = list(attempts)
+        self.warnings = list(warnings)
+
+
 def search_market(query, domain, key):
-    # Indexed listings often omit the word "sold" even when a sale occurred.
-    # Retrieve listing leads; users verify sale status on the original page.
-    path = "itm" if domain == "ebay.com" else "listing"
     focused = focused_search_query(query)
-    # One fallback per marketplace: remove the URL-path restriction and shorten
-    # the title. All accepted results still must be individual marketplace pages.
-    searches = [f"site:{domain}/{path}/ {focused}",
-                f"site:{domain} {' '.join(focused.split()[:3])}"]
-    for search in searches:
-        params = urlencode({"engine": "google", "q": search,
-                            "api_key": key, "gl": "us", "hl": "en"})
-        # Never log this URL: it contains the private key.
-        with urlopen("https://serpapi.com/search.json?" + params, timeout=18) as response:
-            payload = json.load(response)
-        # SerpApi can return an `error` alongside status=Success for genuinely
-        # empty Google results. Retry those, but never retry credential/quota errors.
-        empty_success = (payload.get("search_metadata", {}).get("status") == "Success"
-                         and "empty" in str(payload.get("search_information", {}).get("organic_results_state", "")).lower()
-                         and not payload.get("organic_results"))
-        if payload.get("error") and not empty_success:
-            raise ValueError("Search provider rejected the request. Check your key and search allowance.")
-        listings = normalize_results(payload.get("organic_results", []), domain, query)
-        if listings:
-            return listings
-    return []
+    broad = " ".join(focused.split()[:3])
+    if domain == "ebay.com":
+        searches = [("ebay", focused), ("google", f"site:{domain}/itm/ {broad}")]
+    else:
+        searches = [("google", f"site:{domain}/listing/ {focused}"),
+                    ("bing", f"site:{domain}/listing/ {broad}")]
+    attempts, collected, warnings = [], {}, []
+    for engine, search in searches:
+        params = {"engine": engine, "api_key": key}
+        if engine == "ebay":
+            params.update({"_nkw": search, "ebay_domain": "ebay.com", "_ipg": 60})
+        else:
+            params["q"] = search
+            params.update({"gl": "us", "hl": "en"} if engine == "google" else {"mkt": "en-US"})
+        try:
+            # Never log this URL: it contains the private key.
+            with urlopen("https://serpapi.com/search.json?" + urlencode(params), timeout=18) as response:
+                payload = json.load(response)
+            empty_success = (payload.get("search_metadata", {}).get("status") == "Success"
+                             and "empty" in str(payload.get("search_information", {}).get("organic_results_state", "")).lower()
+                             and not payload.get("organic_results"))
+            if payload.get("error") and not empty_success:
+                raise ValueError("Search provider rejected the request. Check your key and search allowance.")
+        except (HTTPError, URLError, ValueError, TimeoutError, OSError):
+            if not collected:
+                raise
+            warnings.append(f"{domain}: additional search unavailable; showing the listings already found.")
+            break
+        organic = payload.get("organic_results", [])
+        rows = organic
+        if engine == "ebay":
+            rows = []
+            for row in organic:
+                price = row.get("price", {})
+                raw_price = price.get("raw", "") if isinstance(price, dict) else ""
+                snippet = " · ".join(str(value) for value in
+                                     (row.get("subtitle"), row.get("condition"), raw_price) if value)
+                rows.append({**row, "snippet": f"Available listing · {snippet}. Asking price; verify sale status."})
+        listings = normalize_results(rows, domain, query)
+        attempts.append({"marketplace": domain, "engine": engine, "query": search,
+                         "returned": len(organic), "accepted": len(listings)})
+        for listing in listings:
+            listing["searchEngine"] = engine
+            parsed = urlparse(listing["url"])
+            identity = parsed.path.rstrip("/")
+            if domain == "ebay.com" and identity.split("/")[-1].isdigit():
+                identity = "/itm/" + identity.split("/")[-1]
+            collected.setdefault(identity, listing)
+        # A handful of hits is not a complete search: supplement and deduplicate.
+        if len(collected) >= 10:
+            break
+    leads = sorted(collected.values(), key=lambda item: (item["relevance"], item["soldHint"]), reverse=True)
+    return SearchResults(leads, attempts, warnings)
 
 
 def research(query, key, search_query=None):
     broad_query = focused_search_query(search_query or query)
-    cache_key = broad_query.casefold()
+    cache_key = "marketplace-v3:" + broad_query.casefold()
     with _lock:
         now = time.time()
         cached = _cache.get(cache_key)
-        if cached and now - cached[0] < 86400:
+        if cached and now - cached[0] < cached[1].get("cacheTtlSeconds", 300):
             return {**cached[1], "query": query, "cached": True}
         while _requests and now - _requests[0] > 60:
             _requests.popleft()
         if len(_requests) >= 5:
             raise ValueError("Please wait a minute before researching another item.")
         _requests.append(now)
-    listings, warnings = [], []
+    listings, warnings, diagnostics = [], [], []
     with ThreadPoolExecutor(max_workers=2) as pool:
         jobs = {domain: pool.submit(search_market, broad_query, domain, key)
                 for domain in ("ebay.com", "poshmark.com")}
         for domain, job in jobs.items():
             try:
-                listings.extend(job.result())
+                found = job.result()
+                listings.extend(found)
+                diagnostics.extend(getattr(found, "attempts", []))
+                warnings.extend(getattr(found, "warnings", []))
             except (HTTPError, URLError, ValueError, TimeoutError, OSError):
                 warnings.append(f"{domain} search unavailable. Check the API key and search allowance, then retry.")
-    if len(warnings) == 2:
+    if len(warnings) == 2 and not listings:
         raise ValueError("Live search unavailable. Check your SerpApi key, allowance and network connection.")
     counts = Counter()
     for listing in listings:
@@ -139,7 +179,8 @@ def research(query, key, search_query=None):
         counts.update(words - STOPWORDS)
     terms = [{"term": word, "listingCount": count} for word, count in counts.most_common(24) if count >= 2]
     result = {"query": query, "searchQuery": broad_query, "listings": listings, "terms": terms, "warnings": warnings,
-              "searchedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "cached": False}
+              "cacheTtlSeconds": 86400 if all(sum(item.get("marketplace") == name for item in listings) >= 10 for name in ("eBay", "Poshmark")) else 300,
+              "diagnostics": diagnostics, "searchedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "cached": False}
     if not warnings and listings:
         with _lock:
             if len(_cache) >= 128:

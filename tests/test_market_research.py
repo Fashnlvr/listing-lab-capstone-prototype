@@ -70,8 +70,14 @@ class ResearchTests(unittest.TestCase):
                                                            io.BytesIO(json.dumps(found).encode())]) as request:
             listings = market.search_market("New Balance sneakers blue suede", "ebay.com", "test")
         self.assertEqual(len(listings), 1)
-        queries = [parse_qs(urlparse(call.args[0]).query)["q"][0] for call in request.call_args_list]
-        self.assertEqual(queries[1], "site:ebay.com New Balance sneakers")
+        parameters = [parse_qs(urlparse(call.args[0]).query) for call in request.call_args_list]
+        self.assertEqual(parameters[0]["engine"], ["ebay"])
+        self.assertEqual(parameters[0]["_ipg"], ["60"])
+        self.assertEqual(parameters[1]["engine"], ["google"])
+        self.assertEqual(parameters[1]["q"], ["site:ebay.com/itm/ New Balance sneakers"])
+        self.assertEqual(listings[0]["searchEngine"], "google")
+        self.assertEqual([attempt["returned"] for attempt in listings.attempts], [0, 1])
+        self.assertNotIn("api_key", json.dumps(listings.attempts))
         self.assertEqual(request.call_count, 2)
 
     def test_provider_credential_error_is_not_retried(self):
@@ -81,11 +87,58 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(request.call_count, 1)
 
     def test_good_results_do_not_use_extra_search_credits(self):
-        payload = {"organic_results": [{"link": "https://poshmark.com/listing/abc",
-                                        "title": "New Balance sneakers"}]}
+        payload = {"organic_results": [{"link": f"https://poshmark.com/listing/abc{i}",
+                                        "title": "New Balance sneakers"} for i in range(10)]}
         with patch.object(market, "urlopen", return_value=io.BytesIO(json.dumps(payload).encode())) as request:
-            self.assertEqual(len(market.search_market("New Balance sneakers", "poshmark.com", "test")), 1)
+            self.assertEqual(len(market.search_market("New Balance sneakers", "poshmark.com", "test")), 10)
         self.assertEqual(request.call_count, 1)
+
+    def test_diagnostics_distinguish_filtered_pages_from_no_pages(self):
+        payloads = [{"organic_results": [{"link": "https://ebay.com/sch/search", "title": "Nike shoes"}]},
+                    {"organic_results": []}]
+        with patch.object(market, "urlopen", side_effect=[io.BytesIO(json.dumps(p).encode()) for p in payloads]):
+            listings = market.search_market("Nike shoes", "ebay.com", "private-placeholder")
+        self.assertEqual(list(listings), [])
+        self.assertEqual([a["returned"] for a in listings.attempts], [1, 0])
+        self.assertEqual([a["accepted"] for a in listings.attempts], [0, 0])
+        self.assertNotIn("private-placeholder", json.dumps(listings.attempts))
+
+    def test_sparse_results_are_supplemented_and_deduplicated(self):
+        first = {"organic_results": [{"link": "https://poshmark.com/listing/a", "title": "New Balance sneakers"}]}
+        second = {"organic_results": [{"link": "https://poshmark.com/listing/a?tracking=1", "title": "New Balance sneakers"},
+                                      {"link": "https://poshmark.com/listing/b", "title": "New Balance sneakers"}]}
+        with patch.object(market, "urlopen", side_effect=[io.BytesIO(json.dumps(p).encode()) for p in (first, second)]) as request:
+            listings = market.search_market("New Balance sneakers", "poshmark.com", "test")
+        self.assertEqual(len(listings), 2)
+        params = parse_qs(urlparse(request.call_args.args[0]).query)
+        self.assertEqual(params["engine"], ["bing"])
+        self.assertEqual(params["mkt"], ["en-US"])
+
+    def test_native_ebay_returns_large_sample_with_unverified_asking_prices(self):
+        payload = {"organic_results": [{"link": f"https://ebay.com/itm/{1000+i}", "title": "New Balance sneakers",
+                                        "price": {"raw": "$45.00", "extracted": 45}, "condition": "Pre-Owned"} for i in range(60)]}
+        with patch.object(market, "urlopen", return_value=io.BytesIO(json.dumps(payload).encode())) as request:
+            listings = market.search_market("New Balance sneakers", "ebay.com", "test")
+        self.assertEqual(len(listings), 60)
+        self.assertEqual(request.call_count, 1)
+        self.assertTrue(all(item["displayedPrice"] == 45 and not item["soldVerified"] for item in listings))
+        self.assertIn("Asking price", listings[0]["snippet"])
+
+    def test_sparse_cache_expires_in_five_minutes(self):
+        with patch.object(market, "time") as clock, patch.object(market, "search_market", return_value=[{"title": "Nike shoes"}]):
+            clock.time.return_value = 1000
+            first = market.research("Nike shoes", "test")
+            self.assertEqual(first["cacheTtlSeconds"], 300)
+            clock.time.return_value = 1301
+            self.assertFalse(market.research("Nike shoes", "test")["cached"])
+
+    def test_supplement_failure_preserves_initial_listings(self):
+        payload = {"organic_results": [{"link": "https://poshmark.com/listing/a", "title": "New Balance sneakers"}]}
+        with patch.object(market, "urlopen", side_effect=[io.BytesIO(json.dumps(payload).encode()), OSError("private-url")]):
+            listings = market.search_market("New Balance sneakers", "poshmark.com", "test")
+        self.assertEqual(len(listings), 1)
+        self.assertEqual(len(listings.warnings), 1)
+        self.assertNotIn("private-url", listings.warnings[0])
 
     def test_empty_results_are_not_cached(self):
         with patch.object(market, "search_market", return_value=[]) as search:

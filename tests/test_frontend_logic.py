@@ -235,6 +235,13 @@ class FrontendTests(unittest.TestCase):
             check(buildGeneralResearchQuery({...state,itemName:'New Balance 440 V2 sneakers'})==='New Balance 440 V2 sneakers','title model preserved');
         """)
 
+    def test_research_empty_message_distinguishes_missing_and_filtered_results(self):
+        self.evaluate("""
+            check(researchEmptyMessage({diagnostics:[{returned:0},{returned:0}]}).includes('zero listing results'),'provider empty');
+            check(researchEmptyMessage({diagnostics:[{returned:5},{returned:3}]}).includes('8 pages'),'filtered results');
+            check(researchEmptyMessage({}).includes('no usable listing results'),'older backend supported');
+        """)
+
     def test_marketplace_searches_target_sold_items(self):
         self.evaluate("""
             var links=buildResearchLinks('Nike blue shoes & boots');
