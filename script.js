@@ -411,6 +411,7 @@ function buildTemplateRecord(template = {}) {
     titlePattern: String(template.titlePattern || "").trim(),
     description: String(template.description || "").trim(),
     shippingNotes: String(template.shippingNotes || "").trim(),
+    tags: String(template.tags || "").trim(),
     keywords: String(template.keywords || "").trim(),
     conditionDisclosure: String(template.conditionDisclosure || "").trim(),
     measurementsReminder: String(template.measurementsReminder || "").trim(),
@@ -441,18 +442,44 @@ const TEMPLATE_TOKEN_SAMPLES = {
   price: "$48.00",
   measurements: "Pit to pit 19 in, length 26 in",
   flaws: "light sleeve wear noted in photos",
+  productType: "blazer", styleModel: "Regent", color: "navy", size: "M",
+  material: "wool blend", gender: "Women", keyFeatures: "notched collar, two-button closure",
 };
 
 function getTemplateTokenValues(values = {}) {
-  return {
-    itemName: String(values.itemName || "").trim(),
-    brand: String(values.brand || "").trim(),
-    category: String(values.category || "").trim(),
-    condition: String(values.condition || "").trim(),
-    price: String(values.price || "").trim(),
-    measurements: String(values.measurements || "").trim(),
-    flaws: String(values.flaws || "").trim(),
-  };
+  return Object.fromEntries(["itemName", "brand", "category", "condition", "price", "measurements", "flaws",
+    "productType", "styleModel", "color", "size", "material", "gender", "keyFeatures", "description", "keywords", "tags"]
+    .map((key) => [key, String(values[key] || "").trim()]));
+}
+
+function listingTemplateValues(state) {
+  const facts = listingCopyFacts(state);
+  const suggestions = buildSearchSuggestions({ ...state, templateTags: "" });
+  return { ...facts, category: prettyCategory(state.category), condition: prettyCondition(state.condition),
+    price: Number(state.price) > 0 ? `$${Number(state.price).toFixed(2)}` : "",
+    description: composeListingDescription(state), keywords: suggestions.keywords.join(", "), tags: suggestions.hashtags };
+}
+
+function renderListingTemplate(text, values) {
+  // A line requiring an unknown fact cannot become a factual claim or a sample.
+  return String(text || "").split("\n").filter((line) => {
+    const tokens = [...line.matchAll(/\{\{\s*(\w+)\s*\}\}|\{(\w+)\}/g)];
+    return tokens.every((match) => String(values[match[1] || match[2]] || "").trim());
+  }).map((line) => renderTemplateTokens(line, values)).join("\n").trim();
+}
+
+function composeTemplateDescription(state, template) {
+  const base = composeListingDescription(state);
+  if (!template) return base;
+  const values = listingTemplateValues(state);
+  const description = renderListingTemplate(template.description, values);
+  // {{description}} is a supported complete generated body; avoid repeating it.
+  const opening = description.includes(base) && base ? description : [base, description].filter(Boolean).join("\n\n");
+  return appendUniqueNoteSections(opening, [
+    { label: "Condition", content: renderListingTemplate(template.conditionDisclosure, values) },
+    { label: "Measurements", content: renderListingTemplate(template.measurementsReminder, values) },
+    { label: "Shipping", content: renderListingTemplate(template.shippingNotes, values) },
+  ]);
 }
 
 function renderTemplateTokens(text, values = {}, fallbackValues = {}) {
@@ -935,7 +962,51 @@ function buildListingTitle(listing) {
     .filter(Boolean).join(" ").trim() || "Untitled item";
 }
 
+function listingCopyFacts(state) {
+  const title = String(state.itemName || "");
+  const match = (pattern) => title.match(pattern)?.[0] || "";
+  const modelTitle = title.replace(String(state.brand || ""), "").replace(/\b(?:size|sz)\s*(?:(?:US|UK|EU)\s*)?[\d.]+/gi, "");
+  return { ...state,
+    styleModel: state.styleModel || modelTitle.match(/\b(?:[A-Za-z]+[ -]+){0,2}[A-Za-z]*\d{2,}[A-Za-z0-9-]*(?:\s+V\d+)?\b/)?.[0] || "",
+    productType: state.productType || state.itemType || match(/\b(sneakers?|trainers?|boots?|sandals?|loafers?|heels?|shoes?|jeans|pants|leggings|shorts|skirts?|dresses|dress|jumpsuits?|rompers?|sweaters?|cardigans?|hoodies?|sweatshirts?|t-shirts?|tees?|shirts?|blouses?|tops?|jackets?|coats?|blazers?|handbags?|backpacks?|totes?|bags?|wallets?|belts?|necklaces?|bracelets?|earrings?|rings?|watches|watch|swimsuits?|bikinis?|hats?|scarves|ties)\b/i),
+    size: state.size || title.match(/\bsize\s*([\d.]+(?:\s*(?:W|M|US|UK|EU))?|XXS|XS|S|M|L|XL|XXL|[2-5]XL)\b/i)?.[1] || "",
+    material: state.material || match(/\b(faux leather|vegan leather|wool blend|cotton blend|suede|leather|cotton|linen|silk|cashmere|wool|denim|nylon|polyester|mesh|velvet|corduroy)\b/i),
+    color: state.color || [...title.matchAll(/\b(black|white|navy|blue|red|green|pink|purple|gray|grey|brown|beige|tan|cream|ivory|orange|yellow|burgundy|multicolor)\b/gi)].map((entry) => entry[0]).join(" / "),
+    gender: state.gender || match(/\b(women['’]?s?|men['’]?s?|unisex|girls?|boys?)\b/i),
+  };
+}
+
+function descriptionStylingContext(listing) {
+  const text = [listing.itemName, listing.productType, listing.styleModel, listing.keyFeatures,
+    ...(listing.researchTerms || [])].filter(Boolean).join(" ");
+  const product = String(listing.productType || listing.itemType || "");
+  const footwear = /\b(shoes?|sneakers?|trainers?|boots?|sandals?|heels?|loafers?)\b/i.test(product);
+  if (footwear && /\bnew balance\b/i.test(listing.brand || listing.itemName || "") && /\bnumeric\b/i.test(text)) {
+    return "From New Balance’s Numeric skate line, this pair works with denim, cargo pants or relaxed trousers for a skate-inspired everyday look.";
+  }
+  if (/\b(high rise|high-rise|high waisted|high-waisted)\b/i.test(text) && /\b(jeans|pants|shorts)\b/i.test(product)) {
+    return /\b(wide leg|wide-leg)\b/i.test(text)
+      ? "The high-rise waist and wide-leg silhouette work well with a tucked-in tee or fitted knit. Add a cropped jacket to keep the waistline visible."
+      : "The high-rise silhouette pairs well with tucked-in tops or shorter layers that keep the waistline in view.";
+  }
+  if (/\b(boho|bohemian)\b/i.test(text)) return "For a bohemian look, pair with natural textures and simple accessories. Keep other patterns understated so the detailing has room to stand out.";
+  if (/\b(tailored|business casual|office wear)\b/i.test(text)) return "Style with tailored separates for a coordinated workwear look, or combine with denim for a more relaxed outfit.";
+  if (/\bminimalist\b/i.test(text)) return "The minimalist styling keeps the overall look understated. Pair with clean lines and simple accessories, or use it to balance a more detailed outfit.";
+  if (/\by2k\b/i.test(text)) return "Build a Y2K-inspired outfit around this piece, or mix it with simple contemporary separates for a subtler take on the style.";
+  if (/\bfloral\b/i.test(text)) return "Pick out a color from the floral design for coordinating accessories, or pair with solid colors to let the print stand out.";
+  if (/\b(crossbody|cross-body)\b/i.test(text) && /\b(bags?|handbags?|purses?)\b/i.test(product)) return "The crossbody format offers a hands-free way to carry the bag. Wear with denim and a simple top for an everyday outfit, or coordinate with a dress and understated accessories.";
+  if (/\b(sneakers?|trainers?)\b/i.test(product)) return "Pair with straight-leg denim and a simple tee for an everyday outfit, or wear with relaxed trousers and a knit for a more coordinated casual look.";
+  if (/\b(sweaters?|cardigans?|hoodies?|sweatshirts?)\b/i.test(product)) return "Wear with straight-leg denim for a relaxed outfit, or pair with tailored trousers for a more coordinated look. Choose a simple base layer to keep attention on the shape and texture.";
+  if (/\b(jeans|pants|shorts|skirts?)\b/i.test(product)) return "Pair with a simple tee and sneakers for a relaxed outfit, or add knitwear and a structured jacket for a more coordinated look.";
+  if (/\b(dress|dresses|jumpsuits?|rompers?)\b/i.test(product)) return "Let the silhouette lead with simple accessories. Add a jacket and change the footwear to take the outfit in a more relaxed or dressed-up direction.";
+  if (/\b(jackets?|coats?|blazers?)\b/i.test(product)) return "Layer over a simple tee with denim for a casual outfit, or wear over knitwear and tailored trousers for a more coordinated look.";
+  if (/\b(tops?|shirts?|blouses?|tees?)\b/i.test(product)) return "Wear with denim and simple shoes for a relaxed outfit, or tuck into tailored bottoms and add a jacket for a more coordinated look.";
+  if (/\b(necklaces?|bracelets?|earrings?|rings?)\b/i.test(product)) return "Wear on its own as a focal detail, or coordinate with pieces in a similar finish for a layered jewelry look.";
+  return "";
+}
+
 function composeListingDescription(listing) {
+  listing = listingCopyFacts(listing);
   const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
   const brand = clean(listing.brand);
   const product = clean(listing.productType || listing.itemType);
@@ -944,39 +1015,107 @@ function composeListingDescription(listing) {
   const color = clean(listing.color);
   const size = clean(listing.size);
   const material = clean(listing.material);
-  let subject = product ? [brand, product].filter(Boolean).join(" ") : title || (brand ? `${brand} item` : "");
+  const modelContainsBrand = brand && normalize(model).startsWith(normalize(brand) + " ");
+  const modelContainsProduct = product && normalize(model).endsWith(" " + normalize(product));
+  let subject = product ? [modelContainsBrand ? "" : brand, model, modelContainsProduct ? "" : product].filter(Boolean).join(" ") : title || (brand ? `${brand} item` : "");
   if (!subject && !color && !size && !material && !listing.condition && !listing.keyFeatures) return "";
   if (!subject) subject = "This item";
-  if (model && !normalize(subject).includes(normalize(model))) subject += ` (${model})`;
   if (color && !normalize(subject).includes(normalize(color))) subject += ` in ${color}`;
-  const sentences = [subject.replace(/[.!?]+$/, "") + "."];
-  const department = clean(listing.gender);
-  if (size) sentences.push(`Tagged as size ${size}${department ? ` in ${department.toLowerCase()} sizing` : ""}.`);
-  else if (department) sentences.push(`Listed in the ${department.toLowerCase()} department.`);
-  if (material) sentences.push(`Made from ${material}.`);
+  const opening = subject.replace(/[.!?]+$/, "") + ".";
+  const styling = descriptionStylingContext(listing);
   const features = [];
-  clean(listing.keyFeatures).split(/[,;]+/).map(clean).filter(Boolean).forEach((feature) => pushUnique(features, feature));
-  (listing.researchTerms || []).forEach((term) => {
-    const value = clean(term);
-    if (value && !normalize([subject, material, size].join(" ")).includes(normalize(value))) pushUnique(features, value);
+  clean(listing.keyFeatures).split(/[,;]+/).map(clean).filter(Boolean).forEach((feature) => pushUnique(features, feature.replace(/[.!?]+$/, "")));
+  const titleFeatures = [
+    /\blace[- ]up(?: closure)?\b/i, /\bcushioned footbed\b/i, /\blow[- ]top\b/i, /\bhigh[- ]top\b/i,
+    /\blong sleeves?\b/i, /\bshort sleeves?\b/i, /\bsleeveless\b/i, /\bv[- ]neck\b/i, /\bcrew ?neck\b/i,
+    /\bbutton[- ]front\b/i, /\bzip[- ]front\b/i, /\bcargo pockets?\b/i, /\badjustable strap\b/i,
+    /\bchain strap\b/i, /\bblock heel\b/i, /\bfloral print\b/i, /\bcable[- ]knit\b/i,
+    /\bpleated\b/i, /\bribbed\b/i, /\bembroidered\b/i, /\bdistressed\b/i,
+    /\blined\b/i, /\bzip pockets?\b/i, /\blobs?ter clasp\b/i,
+  ];
+  titleFeatures.forEach((pattern) => {
+    const match = title.match(pattern);
+    const feature = match?.[0];
+    const negated = match && /\b(?:no|not|without)\s*$/i.test(title.slice(0, match.index));
+    if (feature && !negated && !features.some((existing) => normalize(existing).replace(/-/g, " ").includes(normalize(feature).replace(/-/g, " ")))) pushUnique(features, feature);
   });
-  if (features.length) {
-    const joined = features.length < 2 ? features[0] : `${features.slice(0, -1).join(", ")} and ${features[features.length - 1]}`;
-    sentences.push(`Features include ${joined.replace(/[.!?]+$/, "")}.`);
-  }
-  const conditions = {
-    new: "New and unused.",
-    "like-new": "In like-new condition.",
-    good: "In good pre-owned condition.",
-    fair: "In fair pre-owned condition.",
+  const featureText = features.filter((feature) => !/\b(?:not|without|no)\b/i.test(feature)).join(" ");
+  const construction = [];
+  const explained = [];
+  const detailRules = [
+    [/\blace[- ]up(?: closure| fastening)?\b/i, "The lace-up fastening lets you adjust how securely the pair sits.", /\b(shoes?|sneakers?|trainers?|boots?)\b/i.test(product)],
+    [/\bcushioned footbed\b/i, "A cushioned footbed provides padding underfoot.", true],
+    [/\badjustable strap\b/i, "The adjustable strap lets you change the carrying length to suit your preferred position.", /\b(bags?|handbags?|purses?)\b/i.test(product)],
+    [/\bcable[- ]knit\b/i, "Cable-knit detailing gives the surface a raised, textured pattern.", true],
+    [/\bpleated\b/i, "Pleated detailing adds definition and movement to the silhouette.", true],
+    [/\bribbed\b/i, "Ribbed detailing adds a defined, linear texture.", true],
+    [/\bembroidered\b/i, "Embroidery adds a stitched decorative detail.", true],
+    [/\bdistressed\b/i, "Distressed detailing gives the design a worn-in look.", true],
+  ];
+  detailRules.forEach(([pattern, sentence, applicable]) => {
+    if (applicable && pattern.test(featureText)) explained.push({ pattern, sentence });
+  });
+  const remaining = features.filter((feature) => !explained.some(({ pattern }) => pattern.test(feature) && feature.split(/\s+/).length <= 4));
+  const naturalFeature = (feature) => {
+    const key = normalize(feature).replace(/-/g, " ");
+    const known = { "low top": "a low-top profile", "high top": "a high-top profile", "v neck": "a V-neckline",
+      "crewneck": "a crew neckline", "crew neck": "a crew neckline", "long sleeve": "long sleeves", "long sleeves": "long sleeves",
+      "short sleeve": "short sleeves", "short sleeves": "short sleeves", "sleeveless": "a sleeveless cut",
+      "button front": "a button-front fastening", "zip front": "a zip-front fastening", "chain strap": "a chain strap",
+      "block heel": "a block heel", "lined": "a lining", "floral print": "a floral print" };
+    return known[key] || feature;
   };
-  if (conditions[listing.condition]) sentences.push(conditions[listing.condition]);
-  return sentences.join(" ");
+  const detailList = remaining.map(naturalFeature);
+  const joined = detailList.length < 2 ? detailList[0] : `${detailList.slice(0, -1).join(", ")} and ${detailList[detailList.length - 1]}`;
+  if (material && joined) construction.push(`Made from ${material}, the design features ${joined}.`);
+  else if (material) construction.push(`Made from ${material}.`);
+  else if (joined) construction.push(`The design features ${joined}.`);
+  explained.forEach(({ sentence }) => construction.push(sentence));
+  const conditions = { new: "New and unused.", "like-new": "In like-new condition.", good: "In good pre-owned condition.", fair: "In fair pre-owned condition." };
+  const condition = conditions[listing.condition] || "";
+  const department = clean(listing.gender).replace(/['’]s$/i, "").toLowerCase();
+  const departmentLabel = ({ men: "men’s", mens: "men’s", women: "women’s", womens: "women’s",
+    boy: "boys’", boys: "boys’", girl: "girls’", girls: "girls’", kids: "kids’" })[department] || department;
+  const footwear = /\b(shoes?|sneakers?|trainers?|boots?|sandals?|heels?|loafers?)\b/i.test(product);
+  const accessory = /\b(bags?|handbags?|purses?|wallets?|necklaces?|bracelets?|earrings?|rings?|watches|watch)\b/i.test(product);
+  const sizeSentence = size ? `${departmentLabel ? departmentLabel[0].toUpperCase() + departmentLabel.slice(1) + " " : ""}size ${size}.` : "";
+  const fitAdvice = !size ? "" : footwear
+    ? "Compare the listed size and any provided measurements with a pair you already wear, as sizing can vary by brand and model."
+    : accessory ? "Check any provided dimensions for the scale and proportions you prefer."
+    : "Compare any provided measurements with a similar garment you own, especially if you prefer a closer or more relaxed fit.";
+  const fit = [sizeSentence, fitAdvice].filter(Boolean).join(" ");
+  // Item facts precede outfit suggestions, and condition/fit stay easy to find.
+  return [opening, construction.join(" "), styling, [condition, fit].filter(Boolean).join(" ")]
+    .filter(Boolean).join("\n\n");
+
 }
 
 function buildMarketplaceDescription(listing) {
   // The editable description is the buyer-facing copy, not an attribute dump.
   return String(listing.notes || "").trim() || composeListingDescription(listing);
+}
+
+function buildPrivateListingNote(listing) {
+  const lines = [];
+  const inventorySku = listing.sku || (listing.id ? getListingSku(listing) : "");
+  if (inventorySku) lines.push(`Inventory SKU: ${inventorySku}`);
+  else {
+    const settings = getSkuSettings();
+    const used = new Set(getListings().map((item) => normalize(getListingSku(item))));
+    while (used.has(normalize(formatCustomSku(settings.nextNumber, settings)))) settings.nextNumber++;
+    lines.push(`Inventory SKU: ${formatCustomSku(settings.nextNumber, settings)} (assigned when copied or saved)`);
+  }
+  if (listing.manufacturerSku) lines.push(`Item SKU / Style Code: ${listing.manufacturerSku}`);
+  if (listing.itemName) lines.push(`Item: ${listing.itemName}`);
+  const cogs = listing.purchasePrice ?? listing.pricingPlan?.inputs.cogs;
+  if (cogs !== undefined && cogs !== null && cogs !== "" && Number.isFinite(Number(cogs)) && Number(cogs) >= 0) lines.push(`Cost of goods: $${Number(cogs).toFixed(2)}`);
+  if (Number(listing.price) > 0) lines.push(`List price: $${Number(listing.price).toFixed(2)}`);
+  if (listing.pricingPlan) {
+    if (Number.isFinite(Number(listing.pricingPlan.minSale))) lines.push(`Minimum sale: $${Number(listing.pricingPlan.minSale).toFixed(2)}`);
+    if (Number.isFinite(Number(listing.pricingPlan.targetPrice))) lines.push(`Target price: $${Number(listing.pricingPlan.targetPrice).toFixed(2)}`);
+  }
+  if (listing.privateNotes) lines.push(`Private notes: ${String(listing.privateNotes).trim()}`);
+  return lines.join("\n");
 }
 
 function getMarketplaceMap(listing) {
@@ -1001,7 +1140,8 @@ function getMarketplaceMap(listing) {
     listingPrice: price, price,
   };
   return {
-    flyp: { ...common, tags: listing.hashtags || "" },
+    flyp: { ...common, tags: listing.hashtags || "", manufacturerSku: listing.manufacturerSku || "",
+      costOfGoods: listing.purchasePrice ?? listing.pricingPlan?.inputs.cogs ?? "", noteToSelf: buildPrivateListingNote(listing) },
     ebay: { ...common, format: "Buy It Now", quantity: "1", conditionId: "", categoryId: "" },
     poshmark: {
       ...common, description: description.slice(0, 1500),
@@ -1031,13 +1171,13 @@ function marketplaceFormFields(listing, platform) {
   } else {
     fields.Condition = target.condition;
     if (platform === "ebay") Object.assign(fields, { "Format": target.format, "Quantity": target.quantity });
-    else fields.Tags = target.tags;
+    else Object.assign(fields, { Tags: target.tags, "Item SKU / Style Code": target.manufacturerSku, "Cost of Goods": target.costOfGoods, "Note to Self": target.noteToSelf });
   }
   return fields;
 }
 
 function marketplaceFormSummary(listing, platform) {
-  return Object.entries(marketplaceFormFields(listing, platform)).filter(([, value]) => value !== "")
+  return Object.entries(marketplaceFormFields(listing, platform)).filter(([label, value]) => value !== "" && !["Cost of Goods", "Note to Self"].includes(label))
     .map(([label, value]) => `${label}: ${value}`).join("\n\n");
 }
 
@@ -1129,7 +1269,7 @@ function exportCSV(listings, platform = "inventory") {
 
   const headers = [
     "id", "sku", "itemName", "brand", "category", "condition", "status", "price", "notes", "keywords", "hashtags", "createdAt", "updatedAt",
-    "itemType", "productType", "styleModel", "keyFeatures", "color", "material", "gender", "size",
+    "itemType", "productType", "styleModel", "keyFeatures", "color", "material", "gender", "size", "manufacturerSku", "privateNotes",
     "purchasePrice", "minSale", "targetPrice", "targetNetMargin", "minimumProfit", "targetProfit", "offerRoomPct", "mileage", "mileageCost", "estimatedNetProfit",
     "ebay_title", "ebay_category", "ebay_condition", "ebay_price", "ebay_description", "ebay_keywords", "ebay_hashtags",
     "poshmark_title", "poshmark_category", "poshmark_condition", "poshmark_price", "poshmark_description", "poshmark_keywords", "poshmark_hashtags",
@@ -1444,8 +1584,66 @@ function updatePhotoGuidance(category, preparation) {
   $("#addPhotoShotBtn").disabled = !guide;
 }
 
+// Related search vocabulary is grounded in item facts, not claimed search volume.
+function relevantSearchVocabulary(state) {
+  const text = [state.itemName, state.brand, state.styleModel, state.productType, state.material,
+    state.keyFeatures, ...(state.researchTerms || [])].filter(Boolean).join(" ");
+  const product = String(state.productType || state.itemType || "");
+  const aliases = [], contexts = [], styles = [], taxonomy = [];
+  const add = (list, ...terms) => terms.forEach((term) => pushUnique(list, term));
+  if (/\b(sneakers?|trainers?)\b/i.test(product)) add(aliases, "sneakers", "trainers", "casual shoes");
+  if (/\b(shoes?|sneakers?|trainers?|boots?|sandals?|heels?|loafers?)\b/i.test(product)) add(taxonomy, "Footwear");
+  if (/\bhandbags?|purses?\b/i.test(product)) { add(aliases, "handbag", "purse", "shoulder bag"); add(taxonomy, "Bags", "Accessories"); }
+  // Shoulder/crossbody/other carrying formats require an explicit identifying term.
+  if (!/\bshoulder\b/i.test(text)) { const index = aliases.indexOf("shoulder bag"); if (index >= 0) aliases.splice(index, 1); }
+  if (/\bjeans\b/i.test(product)) { add(aliases, "jeans", "denim pants"); add(taxonomy, "Denim", "Denimwear"); }
+  if (/\b(sweaters?|cardigans?)\b/i.test(product)) { add(aliases, "knitwear"); add(taxonomy, "Knitwear", "Layering"); }
+  if (/\b(jackets?|coats?|blazers?)\b/i.test(product)) add(taxonomy, "Outerwear", "Layering");
+  if (/\b(dresses|dress|skirts?|tops?|shirts?|blouses?|pants|shorts|jeans)\b/i.test(product)) add(taxonomy, "Clothing");
+  if (/\b(necklaces?|bracelets?|earrings?|rings?)\b/i.test(product)) add(taxonomy, "Jewelry", "Accessories");
+  const footwear = taxonomy.includes("Footwear");
+  // New Balance identifies Numeric as its skate line; do not apply this to all NB shoes.
+  const numericSkate = footwear && /\bnew balance\b/i.test(text) && /\bnumeric\b/i.test(text);
+  if (numericSkate || /\b(skate|skateboarding|skateboard)\b/i.test(text)) {
+    if (footwear) add(aliases, "skate shoes", "skateboarding shoes", "skate sneakers");
+    add(contexts, "skateboarding", "skater style"); add(styles, "Skatewear", "Skater Style", "Streetwear");
+  }
+  const rules = [
+    [/\b(yoga|pilates)\b/i, ["yoga", "studio workout"], ["Yoga", "Activewear", "Studio Style"]],
+    [/\b(swimsuit|swimwear|bikini|swim trunks)\b/i, ["swimwear", "beachwear", "poolside"], ["Swimwear", "Beachwear"]],
+    [/\b(chelsea)\b/i, ["chelsea style", "ankle boot"], ["Chelsea", "Ankle Boots"]],
+    [/\b(combat boots?)\b/i, ["combat", "utility style"], ["Combat", "Utility Style"]],
+    [/\b(lace up|lace-up)\b/i, ["lace up", "lace fastening"], ["Lace Up"]],
+    [/\b(low top|low-top)\b/i, ["low top", "low cut"], ["Low Top"]],
+    [/\b(high top|high-top)\b/i, ["high top", "high cut"], ["High Top"]],
+    [/\b(running|jogging)\b/i, ["running", "jogging"], ["Running", "Sportswear"]],
+    [/\b(hiking|trekking)\b/i, ["hiking", "trail", "outdoor"], ["Hiking", "Outdoor Style"]],
+    [/\b(tailored|business casual|office wear|workwear)\b/i, ["business casual", "office wear", "workwear"], ["Workwear", "Business Casual", "Tailored"]],
+    [/\b(boho|bohemian)\b/i, ["bohemian", "boho style"], ["Boho", "Bohemian"]],
+    [/\b(minimalist|minimalism)\b/i, ["minimalist", "minimal style"], ["Minimalist", "Clean Style"]],
+    [/\b(western|cowboy|cowgirl)\b/i, ["western", "western style"], ["Western", "Westernwear"]],
+    [/\by2k\b/i, ["2000s style", "y2k aesthetic"], ["Y2K", "2000s Style"]],
+    [/\bretro\b/i, ["retro style", "retro inspired"], ["Retro", "Retro Style"]],
+    [/\bvintage\b/i, ["vintage", "vintage style"], ["Vintage"]],
+    [/\b(cable knit|cable-knit)\b/i, ["cable knit", "textured knit"], ["Cable Knit", "Textured Knit"]],
+    [/\b(high rise|high-rise|high waisted|high-waisted)\b/i, ["high rise", "high waisted"], ["High Rise", "High Waisted"]],
+    [/\b(wide leg|wide-leg)\b/i, ["wide leg", "relaxed silhouette"], ["Wide Leg"]],
+    [/\b(flare|flared|bell bottom)\b/i, ["flared", "flare leg"], ["Flared", "Flare Leg"]],
+    [/\bfloral\b/i, ["floral print", "flower pattern"], ["Floral", "Flower Print"]],
+    [/\b(striped|stripes)\b/i, ["striped", "stripe pattern"], ["Striped"]],
+    [/\b(plaid|tartan)\b/i, ["plaid", "check pattern"], ["Plaid", "Checked"]],
+    [/\b(oversized|oversize)\b/i, ["oversized", "relaxed fit"], ["Oversized", "Relaxed Fit"]],
+    [/\b(crossbody|cross-body)\b/i, ["crossbody", "hands free"], ["Crossbody", "Hands Free"]],
+  ];
+  rules.forEach(([pattern, related, tags]) => {
+    if (pattern.test(text)) { add(contexts, ...related); add(styles, ...tags); }
+  });
+  return { aliases, contexts, styles, taxonomy };
+}
+
 // Suggestions use seller-confirmed attributes, not inferred trends or search volumes.
 function buildSearchSuggestions(state) {
+  state = listingCopyFacts(state);
   const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
   const brand = clean(state.brand);
   const categoryProducts = {
@@ -1454,6 +1652,7 @@ function buildSearchSuggestions(state) {
     jewelry: "jewelry", accessories: "accessory",
   };
   const product = clean(state.productType || state.itemType || categoryProducts[state.category]);
+  const vocabulary = relevantSearchVocabulary(state);
   const model = clean(state.styleModel);
   const color = clean(state.color);
   const material = clean(state.material);
@@ -1498,17 +1697,38 @@ function buildSearchSuggestions(state) {
     });
     if (model && size) add(brand, model, product, `size ${size}`);
     add(product);
+    const synonyms = /\b(sneakers?|trainers?)\b/i.test(product) ? ["sneakers", "trainers", "shoes"]
+      : /\bhandbags?\b/i.test(product) ? ["handbag", "purse", "bag"]
+      : /\bjeans\b/i.test(product) ? ["jeans", "denim pants"] : [];
+    synonyms.forEach((alias) => { add(brand, alias); add(model, alias); if (color) add(color, alias); });
   }
   [brand, model, material, ...features].forEach((value) => add(value));
+  const relatedPhrases = [];
+  const addRelated = (...parts) => {
+    const phrase = parts.filter(Boolean).join(" ");
+    if (phrase) pushUnique(relatedPhrases, phrase);
+  };
+  vocabulary.aliases.forEach((alias) => {
+    addRelated(brand, alias); if (model) addRelated(brand, model, alias);
+    if (color) addRelated(color, alias); if (material) addRelated(material, alias);
+    if (size) addRelated(gender, alias, `size ${size}`);
+  });
+  vocabulary.contexts.forEach((context) => {
+    addRelated(context, product); addRelated(brand, context, product);
+    if (color) addRelated(color, context, product);
+  });
+  const orderedKeywords = [];
+  [...keywords.slice(0, 16), ...relatedPhrases, ...keywords.slice(16)].forEach((term) => pushUnique(orderedKeywords, term));
+  // Tags are discovery labels, not a second copy of long buyer queries.
   const tags = [];
-  [brand, product, model, color, material, gender, ...(state.researchTerms || []), ...features,
-    size ? `size ${size}` : "",
-    ...keywords,
+  [...String(state.templateTags || "").split(","), ...vocabulary.styles,
+    ...(state.researchTerms || []), material, ...features, ...vocabulary.taxonomy,
+    product, color, model, brand,
   ].forEach((value) => {
     const tag = clean(value).replace(/^#+/, "");
-    if (tag && !tags.some((existing) => existing.toLowerCase() === tag.toLowerCase())) tags.push(tag);
+    if (tag && tag.length <= 25) pushUnique(tags, tag);
   });
-  return { keywords: keywords.slice(0, 60), hashtags: tags.slice(0, 36).join(", ") };
+  return { keywords: orderedKeywords.slice(0, 60), hashtags: tags.slice(0, 36).join(", ") };
 }
 
 function buildGeneralResearchQuery(state) {
@@ -1538,6 +1758,7 @@ function initNewListingPage() {
   let generatedDescription = "";
   let descriptionIsCustom = false;
   let templateKeywords = "";
+  let appliedTemplate = null;
   let pricingPlan = null;
   $("#addPhotoShotBtn").addEventListener("click", () => {
     const input = $("#additionalPhotoShot");
@@ -1556,6 +1777,9 @@ function initNewListingPage() {
     gender: $("#gender"),
     size: $("#size"),
     sku: $("#itemSku"),
+    manufacturerSku: $("#manufacturerSku"),
+    purchasePrice: $("#purchasePrice"),
+    privateNotes: $("#privateNotes"),
 
     itemName: $("#itemName"),
     color: $("#color"),
@@ -1578,6 +1802,10 @@ function initNewListingPage() {
     exportPreview: $("#exportPreview"),
     exportTitle: $("#exportTitle"),
     exportPrice: $("#exportPrice"),
+    exportBrand: $("#exportBrand"),
+    exportManufacturerSku: $("#exportManufacturerSku"),
+    exportCogs: $("#exportCogs"),
+    exportPrivateNotes: $("#exportPrivateNotes"),
     exportDescription: $("#exportDescription"),
     exportSellerNotes: $("#exportSellerNotes"),
     exportHashtags: $("#exportHashtags"),
@@ -1612,6 +1840,7 @@ function initNewListingPage() {
     templateTitlePattern: $("#templateTitlePattern"),
     templateDescription: $("#templateDescription"),
     templateKeywords: $("#templateKeywords"),
+    templateTags: $("#templateTags"),
     templateShippingNotes: $("#templateShippingNotes"),
     templateConditionDisclosure: $("#templateConditionDisclosure"),
     templateMeasurementsReminder: $("#templateMeasurementsReminder"),
@@ -1647,6 +1876,9 @@ function initNewListingPage() {
       gender: fields.gender.value.trim(),
       size: fields.size.value.trim(),
       sku: fields.sku.value.trim(),
+      manufacturerSku: fields.manufacturerSku.value.trim(),
+      purchasePrice: fields.purchasePrice.value.trim() === "" ? undefined : Number(fields.purchasePrice.value),
+      privateNotes: fields.privateNotes.value.trim(),
 
       photoPreparation,
       manualComps: nodes.manualCompInputs.map((input) => input.value),
@@ -1654,6 +1886,7 @@ function initNewListingPage() {
       descriptionIsCustom,
       __draftId: currentDraftId,
       templateKeywords,
+      appliedTemplate,
       pricingPlan,
       itemName: fields.itemName.value.trim(),
       color: fields.color.value.trim(),
@@ -1667,13 +1900,16 @@ function initNewListingPage() {
       status: "draft",
     };
     if (pricingPlan?.inputs) {
-      try { state.pricingPlan = calculateResalePricing(pricingPlan.inputs, state.price); } catch { state.pricingPlan = null; }
+      try { state.pricingPlan = calculateResalePricing({ ...pricingPlan.inputs, cogs: state.purchasePrice ?? pricingPlan.inputs.cogs }, state.price); } catch { state.pricingPlan = null; }
     }
     const researchMatches = marketResearch?.researchMode === "sold-leads-v2" && marketResearch.query === buildCompQuery(state);
     state.marketResearch = researchMatches ? marketResearch : null;
     state.researchTerms = researchMatches ? selectedResearchTerms : [];
+    const templateValues = appliedTemplate ? listingTemplateValues(state) : null;
+    const activeKeywords = appliedTemplate ? renderListingTemplate(appliedTemplate.keywords, templateValues) : templateKeywords;
+    state.templateTags = appliedTemplate ? renderListingTemplate(appliedTemplate.tags, templateValues) : "";
     const suggestions = buildSearchSuggestions(state);
-    state.keywords = mergeTemplateKeywords(suggestions.keywords.join(", "), templateKeywords);
+    state.keywords = mergeTemplateKeywords(suggestions.keywords.join(", "), activeKeywords);
     state.hashtags = suggestions.hashtags;
     return state;
   }
@@ -1687,6 +1923,7 @@ function initNewListingPage() {
     generatedDescription = state.generatedDescription || "";
     descriptionIsCustom = state.descriptionIsCustom === true;
     templateKeywords = state.templateKeywords || "";
+    appliedTemplate = state.appliedTemplate ? buildTemplateRecord(state.appliedTemplate) : null;
     pricingPlan = state.pricingPlan || null;
     latestCompQuery = "";
     latestCompSource = "none";
@@ -1713,6 +1950,9 @@ function initNewListingPage() {
     fields.gender.value = state.gender || "";
     fields.size.value = state.size || "";
     fields.sku.value = state.sku || (state.__editingId ? getListingSku(state) : "");
+    fields.manufacturerSku.value = state.manufacturerSku || "";
+    fields.purchasePrice.value = state.purchasePrice ?? state.pricingPlan?.inputs.cogs ?? "";
+    fields.privateNotes.value = state.privateNotes || "";
 
     photoPreparation = {
       completed: { ...(state.photoPreparation?.completed || {}) },
@@ -1764,7 +2004,7 @@ function initNewListingPage() {
     const sellerNotes = generatedDescription && existing.startsWith(generatedDescription)
       ? existing.slice(generatedDescription.length).replace(/^\s*Seller notes:\n/, "").trim()
       : existing;
-    generatedDescription = composeListingDescription(state);
+    generatedDescription = composeTemplateDescription(state, appliedTemplate);
     return [generatedDescription, sellerNotes].filter(Boolean).join("\n\n");
   }
 
@@ -1774,6 +2014,7 @@ function initNewListingPage() {
     if (nodes.templateTitlePattern) nodes.templateTitlePattern.value = template?.titlePattern || "";
     nodes.templateDescription.value = template?.description || "";
     nodes.templateKeywords.value = template?.keywords || "";
+    nodes.templateTags.value = template?.tags || "";
     nodes.templateShippingNotes.value = template?.shippingNotes || "";
     if (nodes.templateConditionDisclosure) nodes.templateConditionDisclosure.value = template?.conditionDisclosure || "";
     if (nodes.templateMeasurementsReminder) nodes.templateMeasurementsReminder.value = template?.measurementsReminder || "";
@@ -1796,32 +2037,20 @@ function initNewListingPage() {
     if (!template) return;
     const current = getFormState();
 
-    const tokenValues = {
-      itemName: current.itemName,
-      brand: current.brand,
-      category: prettyCategory(current.category || template.category),
-      condition: prettyCondition(current.condition || template.condition),
-      price: Number.isFinite(current.price) && current.price > 0 ? `$${current.price.toFixed(2)}` : "",
-      measurements: "[add measurements]",
-      flaws: "[add flaws]",
-    };
-
-    const title = renderTemplateTokens(template.titlePattern, tokenValues, TEMPLATE_TOKEN_SAMPLES);
-    if (!fields.itemName.value.trim() && title) fields.itemName.value = title;
     if (!fields.category.value && template.category) fields.category.value = LEGACY_PHOTO_CATEGORIES[template.category] || template.category;
     if (!fields.condition.value && template.condition) fields.condition.value = template.condition;
-
-    const renderedKeywords = renderTemplateTokens(template.keywords, tokenValues, TEMPLATE_TOKEN_SAMPLES);
-    if (renderedKeywords) {
-      templateKeywords = mergeTemplateKeywords(templateKeywords, renderedKeywords);
+    const tokenValues = listingTemplateValues({ ...current, category: fields.category.value, condition: fields.condition.value });
+    const title = renderListingTemplate(template.titlePattern, tokenValues);
+    if (!fields.itemName.value.trim() && title) fields.itemName.value = title;
+    appliedTemplate = buildTemplateRecord(template);
+    templateKeywords = "";
+    // Preserve seller edits; the generated prefix is replaced on every refresh.
+    if (descriptionIsCustom) {
+      const sellerCopy = fields.notes.value.trim();
+      generatedDescription = composeTemplateDescription(getFormState(), appliedTemplate);
+      fields.notes.value = [generatedDescription, sellerCopy].filter(Boolean).join("\n\n");
+      descriptionIsCustom = false;
     }
-
-    fields.notes.value = appendUniqueNoteSections(fields.notes.value, [
-      { label: "Description", content: renderTemplateTokens(template.description, tokenValues, TEMPLATE_TOKEN_SAMPLES) },
-      { label: "Condition Disclosure", content: renderTemplateTokens(template.conditionDisclosure, tokenValues, TEMPLATE_TOKEN_SAMPLES) },
-      { label: "Measurements Reminder", content: renderTemplateTokens(template.measurementsReminder, tokenValues, TEMPLATE_TOKEN_SAMPLES) },
-      { label: "Shipping Notes", content: renderTemplateTokens(template.shippingNotes, tokenValues, TEMPLATE_TOKEN_SAMPLES) },
-    ]);
 
     updatePreview();
   }
@@ -1928,6 +2157,11 @@ function initNewListingPage() {
     nodes.exportPreview.textContent = hasItemData ? marketplaceFormSummary(state, platform) : "";
     if (nodes.exportTitle) nodes.exportTitle.textContent = target.title === "Untitled item" ? "" : target.title;
     if (nodes.exportPrice) nodes.exportPrice.textContent = target.listingPrice;
+    nodes.exportBrand.textContent = state.brand;
+    nodes.exportManufacturerSku.textContent = state.manufacturerSku;
+    const copyCogs = state.purchasePrice ?? state.pricingPlan?.inputs.cogs;
+    nodes.exportCogs.textContent = Number.isFinite(copyCogs) && copyCogs >= 0 ? copyCogs.toFixed(2) : "";
+    nodes.exportPrivateNotes.textContent = hasItemData || state.privateNotes || state.manufacturerSku || state.purchasePrice !== undefined ? buildPrivateListingNote(state) : "";
     if (nodes.exportDescription) nodes.exportDescription.textContent = target.description;
     if (nodes.exportSellerNotes) nodes.exportSellerNotes.textContent = hasItemData ? Object.entries(marketplaceFormFields(state, platform))
       .filter(([key, value]) => !["Title", "Description", "Price", "Listing Price"].includes(key) && value !== "")
@@ -1936,6 +2170,26 @@ function initNewListingPage() {
     const isPoshmark = platform === "poshmark";
     $("#exportTagsLabel").textContent = isPoshmark ? "Style Tags" : platform === "ebay" ? "Tags (reference)" : "Tags";
     if (nodes.exportHashtags) nodes.exportHashtags.textContent = isPoshmark ? target.styleTags.join(", ") : state.hashtags;
+    const tagContainer = $("#individualTagCopies");
+    const tagText = nodes.exportHashtags.textContent;
+    if (tagContainer.dataset.tags !== tagText) {
+      tagContainer.dataset.tags = tagText;
+      tagContainer.replaceChildren();
+      tagText.split(",").map((tag) => tag.trim()).filter(Boolean).forEach((tag) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "btn btn-outline-secondary btn-sm tag-copy-chip";
+        button.textContent = tag;
+        button.setAttribute("aria-label", `Copy tag: ${tag}`);
+        button.addEventListener("click", async () => {
+          const ok = await copyText(tag);
+          setStatus(ok ? `Copied tag: ${tag}` : "Copy failed. Select and copy manually.");
+        });
+        tagContainer.append(button);
+      });
+    }
+    tagContainer.hidden = !tagText;
+    nodes.exportHashtags.hidden = Boolean(tagText);
     $("#exportCompatibilityStatus").textContent = marketplaceExportIssues(state, platform).join(" ");
     document.querySelectorAll(".export-copy-btn").forEach((button) => {
       button.disabled = !document.getElementById(button.getAttribute("data-copy-target"))?.textContent.trim();
@@ -2286,6 +2540,16 @@ function initNewListingPage() {
   document.querySelectorAll(".export-copy-btn").forEach((button) => {
     button.addEventListener("click", async () => {
       const targetId = button.getAttribute("data-copy-target");
+      if (targetId === "exportPrivateNotes") {
+        if (!fields.sku.value.trim()) {
+          const sku = allocateNextSku();
+          if (!sku) { setError("Could not assign your inventory SKU. Check browser storage before copying."); return; }
+          fields.sku.value = sku;
+          updatePreview();
+        }
+        const draft = { ...getFormState(), ...(currentEditingId ? { __editingId: currentEditingId } : {}) };
+        if (!saveDraft(draft)) { setError("Could not save your private note and SKU. Check browser storage before copying."); return; }
+      }
       const target = targetId ? document.getElementById(targetId) : null;
       const ok = await copyText(target?.textContent || "");
       const label = button.closest(".export-copy-card")?.querySelector(".preview-section-label")?.textContent || "Section";
@@ -2314,6 +2578,7 @@ function initNewListingPage() {
         titlePattern: nodes.templateTitlePattern?.value.trim() || getTemplateById(selectedId)?.titlePattern || "",
         description: nodes.templateDescription.value.trim(),
         keywords: nodes.templateKeywords.value.trim(),
+        tags: nodes.templateTags.value.trim(),
         shippingNotes: nodes.templateShippingNotes.value.trim(),
         conditionDisclosure: nodes.templateConditionDisclosure?.value.trim() || "",
         measurementsReminder: nodes.templateMeasurementsReminder?.value.trim() || "",
@@ -2381,6 +2646,11 @@ function initNewListingPage() {
       return;
     }
 
+    if (state.purchasePrice !== undefined && (!Number.isFinite(state.purchasePrice) || state.purchasePrice < 0)) {
+      setError("Cost of goods must be zero or a positive number.");
+      fields.purchasePrice.focus();
+      return;
+    }
     if (state.sku && !isSkuAvailable(state.sku, currentEditingId)) {
       setError("That SKU is already assigned to another item. Enter a unique SKU.");
       fields.sku.focus();
@@ -2437,12 +2707,15 @@ function initNewListingPage() {
 function initTemplatesPage() {
   if (!pageHas("#templatesWorkspace")) return;
 
+  const templatePreviewValues = listingTemplateValues({ ...TEMPLATE_TOKEN_SAMPLES, category: "outerwear", condition: "good", price: 48 });
+
   const fields = {
     name: $("#libraryTemplateName"),
     titlePattern: $("#libraryTemplateTitlePattern"),
     description: $("#libraryTemplateDescription"),
     shippingNotes: $("#libraryTemplateShippingNotes"),
     keywords: $("#libraryTemplateKeywords"),
+    tags: $("#libraryTemplateTags"),
     conditionDisclosure: $("#libraryTemplateConditionDisclosure"),
     measurementsReminder: $("#libraryTemplateMeasurementsReminder"),
   };
@@ -2482,6 +2755,7 @@ function initTemplatesPage() {
       description: fields.description.value.trim(),
       shippingNotes: fields.shippingNotes.value.trim(),
       keywords: fields.keywords.value.trim(),
+      tags: fields.tags.value.trim(),
       conditionDisclosure: fields.conditionDisclosure.value.trim(),
       measurementsReminder: fields.measurementsReminder.value.trim(),
       updatedAt: new Date().toISOString(),
@@ -2495,6 +2769,7 @@ function initTemplatesPage() {
     fields.description.value = template?.description || "";
     fields.shippingNotes.value = template?.shippingNotes || "";
     fields.keywords.value = template?.keywords || "";
+    fields.tags.value = template?.tags || "";
     fields.conditionDisclosure.value = template?.conditionDisclosure || "";
     fields.measurementsReminder.value = template?.measurementsReminder || "";
     renderPreview();
@@ -2521,11 +2796,11 @@ function initTemplatesPage() {
 
   function renderPreview() {
     const template = getEditorTemplate();
-    previewNodes.description.textContent = renderTemplateTokens(template.description, TEMPLATE_TOKEN_SAMPLES) || "Add a reusable description block.";
-    previewNodes.shipping.textContent = renderTemplateTokens(template.shippingNotes, TEMPLATE_TOKEN_SAMPLES) || "Add reusable shipping notes.";
-    previewNodes.keywords.textContent = renderTemplateTokens(template.keywords, TEMPLATE_TOKEN_SAMPLES) || "Add a reusable keyword block.";
-    previewNodes.condition.textContent = renderTemplateTokens(template.conditionDisclosure, TEMPLATE_TOKEN_SAMPLES) || "Optional condition disclosure appears here.";
-    previewNodes.measurements.textContent = renderTemplateTokens(template.measurementsReminder, TEMPLATE_TOKEN_SAMPLES) || "Optional measurements reminder appears here.";
+    previewNodes.description.textContent = renderTemplateTokens(template.description, templatePreviewValues) || templatePreviewValues.description;
+    previewNodes.shipping.textContent = renderTemplateTokens(template.shippingNotes, templatePreviewValues) || "Add reusable shipping notes.";
+    previewNodes.keywords.textContent = [renderTemplateTokens(template.keywords, templatePreviewValues), template.tags ? `Tags: ${renderTemplateTokens(template.tags, templatePreviewValues)}` : ""].filter(Boolean).join("\n\n") || `${templatePreviewValues.keywords}\n\nTags: ${templatePreviewValues.tags}`;
+    previewNodes.condition.textContent = renderTemplateTokens(template.conditionDisclosure, templatePreviewValues) || "Optional condition disclosure appears here.";
+    previewNodes.measurements.textContent = renderTemplateTokens(template.measurementsReminder, templatePreviewValues) || "Optional measurements reminder appears here.";
   }
 
   function renderLibrary() {
@@ -2555,7 +2830,7 @@ function initTemplatesPage() {
           </div>
           <span class="dashboard-sku">Template</span>
         </div>
-        <pre class="saved-template-card__preview">${escapeHtml(renderTemplateTokens(template.titlePattern || template.description, TEMPLATE_TOKEN_SAMPLES) || "No preview yet.")}</pre>
+        <pre class="saved-template-card__preview">${escapeHtml(renderTemplateTokens(template.titlePattern || template.description, templatePreviewValues) || "No preview yet.")}</pre>
         <div class="saved-template-card__actions">
           <button class="btn btn-outline-secondary btn-sm" type="button" data-edit-template="${escapeHtml(template.id)}">Edit</button>
           <button class="btn btn-outline-secondary btn-sm" type="button" data-duplicate-template="${escapeHtml(template.id)}">Duplicate</button>
@@ -2816,7 +3091,7 @@ function resellerSpreadsheetRow(listing) {
     "Date Sold": listing.soldAt ? String(listing.soldAt).slice(0, 10) : "", "Platform Sold On": listing.platformSoldOn || "",
     "Shipping Cost": inputs.shipping ?? listing.shippingCost ?? "", "Platform Fee": fees, "Mileage": inputs.mileage ?? "",
     "Mileage Cost": plan?.mileageCost ?? "", "Total Cost": totalCost, "Profit": hasSale && totalCost !== "" ? sale - totalCost : "",
-    "Receipts": listing.receipts || listing.receiptUrl || "", "Notes": listing.notes || "",
+    "Receipts": listing.receipts || listing.receiptUrl || "", "Notes": listing.privateNotes || listing.notes || "",
   };
 }
 
@@ -2866,7 +3141,7 @@ function initPricingPage() {
     $("#pricingBrand").value = sourceDraft.brand || "";
     $("#pricingCategory").value = sourceDraft.category || "";
     $("#pricingCondition").value = sourceDraft.condition || "";
-    const inputs = sourceDraft.pricingPlan?.inputs || { salePrice: sourceDraft.price || "" };
+    const inputs = sourceDraft.pricingPlan?.inputs || { salePrice: sourceDraft.price || "", cogs: sourceDraft.purchasePrice ?? "" };
     Object.entries(inputIds).forEach(([key, id]) => { if (inputs[key] !== undefined) $("#" + id).value = String(inputs[key]); });
     $("#pricingItemContext").textContent = `Pricing: ${sourceDraft.itemName || sourceDraft.brand || "current listing"}`;
   }
@@ -2903,7 +3178,7 @@ function initPricingPage() {
     const draft = {
       ...(sourceDraft || { __draftId: uid(), brand: $("#pricingBrand").value.trim(), category: $("#pricingCategory").value,
         condition: $("#pricingCondition").value, status: "draft" }),
-      price: result.listPrice, pricingPlan: result,
+      price: result.listPrice, purchasePrice: result.inputs.cogs, pricingPlan: result,
     };
     if (!saveDraft(draft) || !writePricingSession("listingLab:pricingTransfer:v1", { token, draft })) {
       $("#calcStatus").textContent = "Could not transfer pricing. Your calculator results are still here; check browser storage.";

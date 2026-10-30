@@ -117,7 +117,7 @@
               <div class="template-output-card__header">
                 <div>
                   <h2 class="h5 mb-1">Build Template</h2>
-                  <p class="small text-secondary mb-0">Start with the template name, then add the reusable sections you want to apply to future listings.</p>
+                  <p class="small text-secondary mb-0">Use {{description}}, {{keywords}}, {{tags}}, or item fields such as {{brand}}, {{productType}}, {{styleModel}}, {{color}}, {{size}} and {{material}}. Applied templates follow item changes.</p>
                 </div>
               </div>
               <div class="row g-3">
@@ -127,15 +127,18 @@
                 </div>
                 <div class="col-12">
                   <label class="form-label" for="libraryTemplateDescription">Description</label>
-                  <textarea class="form-control" id="libraryTemplateDescription" rows="4" placeholder="Reusable listing body for materials, fit, features, and overall condition."></textarea>
+                  <textarea class="form-control" id="libraryTemplateDescription" rows="4" placeholder="{{description}}
+Add any reusable buyer information below."></textarea>
                 </div>
                 <div class="col-12">
                   <label class="form-label" for="libraryTemplateShippingNotes">Shipping Notes</label>
-                  <textarea class="form-control" id="libraryTemplateShippingNotes" rows="3" placeholder="Reusable shipping notes for handling time, packaging, and tracking."></textarea>
+                  <textarea class="form-control" id="libraryTemplateShippingNotes" rows="3" placeholder="Your actual handling time and packaging policy for {{productType}}."></textarea>
                 </div>
                 <div class="col-12">
                   <label class="form-label" for="libraryTemplateKeywords">Keywords</label>
-                  <input class="form-control" id="libraryTemplateKeywords" placeholder="brand, category, style, season, resale" />
+                  <input class="form-control" id="libraryTemplateKeywords" placeholder="{{brand}} {{productType}}, {{material}} {{productType}}" />
+                        <label class="form-label mt-2" for="libraryTemplateTags">Tags</label>
+                        <input class="form-control" id="libraryTemplateTags" placeholder="{{styleModel}}, {{material}}, {{keyFeatures}}" />
                 </div>
                 <div class="col-12 col-lg-6">
                   <label class="form-label" for="libraryTemplateConditionDisclosure">Condition Disclosure</label>
@@ -283,6 +286,6 @@
     crossorigin="anonymous"
   ></script>
   <script src="config.js"></script>
-  <script src="script.js"></script>
+  <script src="script.js?v=20261029-description-polish"></script>
 </body>
 </html>

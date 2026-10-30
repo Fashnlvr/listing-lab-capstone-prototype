@@ -168,10 +168,22 @@
                     <label class="form-label" for="size">Tagged Size</label>
                     <input class="form-control" id="size" name="size" placeholder="e.g., M, US 8, W30 L32" />
                   </div>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label" for="manufacturerSku">Item SKU / Style Code</label>
+                    <input class="form-control" id="manufacturerSku" name="manufacturerSku" placeholder="Manufacturer's style/article code from the label" />
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label" for="purchasePrice">Cost of Goods</label>
+                    <input class="form-control" id="purchasePrice" name="purchasePrice" type="number" min="0" step="0.01" placeholder="What you paid for this item" />
+                  </div>
                   <div class="col-12">
-                    <label class="form-label" for="itemSku">SKU</label>
+                    <label class="form-label" for="itemSku">Inventory SKU</label>
                     <input class="form-control" id="itemSku" name="sku" maxlength="80" placeholder="Auto: 0001" aria-describedby="itemSkuHelp" />
-                    <div class="form-text" id="itemSkuHelp">Edit this item's SKU, or leave blank to auto-number.</div>
+                    <div class="form-text" id="itemSkuHelp">Your inventory sequence number. Edit it or leave blank to auto-number.</div>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label" for="privateNotes">Private Notes</label>
+                    <textarea class="form-control" id="privateNotes" name="privateNotes" rows="2" placeholder="Storage location, sourcing details, receipts or reminders for yourself"></textarea>
                   </div>
                 </div>
                 </fieldset>
@@ -205,6 +217,7 @@
                 <div class="collapse" id="templateTools">
                   <div class="card bg-light border-0 listing-subpanel">
                     <div class="card-body py-2">
+                      <p class="form-text">Use {{description}}, {{keywords}}, {{tags}}, or item fields such as {{brand}}, {{productType}}, {{styleModel}}, {{color}}, {{size}} and {{material}}. Applied templates follow item changes.</p>
                       <div class="row g-2 mb-2">
                         <div class="col-12">
                           <label class="form-label" for="templateName">Template Name</label>
@@ -214,11 +227,12 @@
                       <div class="row g-2 mb-2">
                         <div class="col-12 col-lg-6">
                           <label class="form-label" for="templateDescription">Description</label>
-                          <textarea class="form-control" id="templateDescription" rows="2" placeholder="Reusable listing copy for materials, fit, features, and condition."></textarea>
+                          <textarea class="form-control" id="templateDescription" rows="2" placeholder="{{description}}
+Add any reusable buyer information below."></textarea>
                         </div>
                         <div class="col-12 col-lg-6">
                           <label class="form-label" for="templateShippingNotes">Shipping Notes</label>
-                          <textarea class="form-control" id="templateShippingNotes" rows="2" placeholder="Shipping expectations, handling time, and packaging notes."></textarea>
+                          <textarea class="form-control" id="templateShippingNotes" rows="2" placeholder="Your actual handling time and packaging policy for {{productType}}."></textarea>
                         </div>
                       </div>
                       <div class="row g-2 mb-2">
@@ -233,7 +247,9 @@
                       </div>
                       <div class="mb-2">
                         <label class="form-label" for="templateKeywords">Keywords</label>
-                        <input class="form-control" id="templateKeywords" placeholder="brand, category, style, season, resale" />
+                        <input class="form-control" id="templateKeywords" placeholder="{{brand}} {{productType}}, {{material}} {{productType}}" />
+                        <label class="form-label mt-2" for="templateTags">Tags</label>
+                        <input class="form-control" id="templateTags" placeholder="{{styleModel}}, {{material}}, {{keyFeatures}}" />
                       </div>
                       <div class="d-flex flex-wrap gap-2">
                         <button class="btn btn-outline-secondary btn-sm" type="button" id="saveTemplateBtn">Save</button>
@@ -403,14 +419,6 @@
 
               <section class="export-copy-card">
                 <div class="export-copy-card__header">
-                  <p class="preview-section-label mb-0">Price</p>
-                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportPrice">Copy</button>
-                </div>
-                <pre id="exportPrice" data-placeholder="Your price will appear here." class="export-copy-value mb-0"></pre>
-              </section>
-
-              <section class="export-copy-card">
-                <div class="export-copy-card__header">
                   <p class="preview-section-label mb-0">Description</p>
                   <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportDescription">Copy</button>
                 </div>
@@ -419,18 +427,59 @@
 
               <section class="export-copy-card">
                 <div class="export-copy-card__header">
-                  <p class="preview-section-label mb-0">Keywords</p>
-                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportKeywords">Copy</button>
+                  <p class="preview-section-label mb-0">Brand</p>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportBrand">Copy</button>
                 </div>
-                <pre id="exportKeywords" data-placeholder="Relevant search keywords will appear here." class="export-copy-value mb-0"></pre>
+                <pre id="exportBrand" data-placeholder="Your brand will appear here." class="export-copy-value mb-0"></pre>
+              </section>
+
+              <section class="export-copy-card">
+                <div class="export-copy-card__header">
+                  <p class="preview-section-label mb-0">SKU</p>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportManufacturerSku">Copy</button>
+                </div>
+                <pre id="exportManufacturerSku" data-placeholder="Enter the manufacturer’s code in Additional Details." class="export-copy-value mb-0"></pre>
               </section>
 
               <section class="export-copy-card">
                 <div class="export-copy-card__header">
                   <p class="preview-section-label mb-0" id="exportTagsLabel">Tags</p>
-                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportHashtags">Copy</button>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportHashtags">Copy All</button>
                 </div>
                 <pre id="exportHashtags" data-placeholder="Relevant tags will appear here." class="export-copy-value mb-0"></pre>
+                <div id="individualTagCopies" class="tag-copy-options gap-1 mt-2" aria-label="Copy individual tags" hidden></div>
+              </section>
+
+              <section class="export-copy-card">
+                <div class="export-copy-card__header">
+                  <p class="preview-section-label mb-0">Note to Self</p>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportPrivateNotes">Copy</button>
+                </div>
+                <pre id="exportPrivateNotes" data-placeholder="Your inventory SKU and private notes will appear here." class="export-copy-value mb-0"></pre>
+              </section>
+
+              <section class="export-copy-card">
+                <div class="export-copy-card__header">
+                  <p class="preview-section-label mb-0">Listing Price</p>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportPrice">Copy</button>
+                </div>
+                <pre id="exportPrice" data-placeholder="Your price will appear here." class="export-copy-value mb-0"></pre>
+              </section>
+
+              <section class="export-copy-card">
+                <div class="export-copy-card__header">
+                  <p class="preview-section-label mb-0">Cost of Goods</p>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportCogs">Copy</button>
+                </div>
+                <pre id="exportCogs" data-placeholder="Your item cost will appear here." class="export-copy-value mb-0"></pre>
+              </section>
+
+              <section class="export-copy-card">
+                <div class="export-copy-card__header">
+                  <p class="preview-section-label mb-0">Keywords</p>
+                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportKeywords">Copy</button>
+                </div>
+                <pre id="exportKeywords" data-placeholder="Relevant search keywords will appear here." class="export-copy-value mb-0"></pre>
               </section>
 
               <section class="export-copy-card export-copy-card--full">
@@ -522,6 +571,6 @@
     crossorigin="anonymous"
   ></script>
   <script src="config.js"></script>
-  <script src="script.js?v=20261029-sold-prices"></script>
+  <script src="script.js?v=20261029-flyp-copy-fields"></script>
 </body>
 </html>

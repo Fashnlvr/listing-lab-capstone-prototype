@@ -59,6 +59,24 @@ class FrontendTests(unittest.TestCase):
             check(renderTemplateTokens('Check the brand label', {brand:'Nike'})==='Check the brand label','literal prose');
         """)
 
+    def test_templates_follow_item_facts_without_sample_claims(self):
+        self.evaluate(r"""
+            const state={itemName:'New Balance Numeric 440 V2 Sneakers Black Men Size 11 Suede',brand:'New Balance',category:'shoes',condition:'good'};
+            const values=listingTemplateValues(state);
+            check(values.productType==='Sneakers' && values.size==='11' && values.material==='Suede','facts from title');
+            check(values.styleModel==='Numeric 440 V2','model retained');
+            const template=buildTemplateRecord({description:'{{description}}',keywords:'{{brand}} {{productType}}',tags:'{{material}}, {{styleModel}}',shippingNotes:'Careful packaging for {{productType}}.',measurementsReminder:'Waist: {{measurements}}'});
+            const text=composeTemplateDescription(state,template);
+            check(text.includes('Numeric 440 V2') && text.includes('Made from Suede.'),'unique detailed copy');
+            check(text.includes('Shipping:\nCareful packaging for Sneakers.'),'explicit shipping');
+            check(!text.includes('Waist:') && !text.includes('[add') && !text.includes('Madewell'),'no missing facts or samples');
+            check(text.split('Made from Suede.').length===2,'generated body only once');
+            check(!composeTemplateDescription(state,{}).includes('Shipping:'),'no invented shipping promise');
+            check(buildSearchSuggestions(state).keywords.some(k=>k.includes('trainers')),'appropriate product synonym');
+            check(!buildSearchSuggestions(state).keywords.some(k=>k.includes('running')),'no invented use');
+            check(buildTemplateRecord({name:'Old'}).tags==='','older templates compatible');
+        """)
+
     def test_listing_crud_status_and_skus(self):
         self.evaluate("""
             check(addListing({id:'a',brand:'Nike',itemName:'Blue',status:'sold',sku:'0001'}),'add');
@@ -199,13 +217,62 @@ class FrontendTests(unittest.TestCase):
             const item={brand:'Nike',productType:'running shoes',styleModel:'Air Max 90',color:'blue',size:'8',material:'mesh',
               keyFeatures:'lace-up closure, cushioned footbed',condition:'good'};
             const text=composeListingDescription(item);
-            check(text.includes('Nike running shoes (Air Max 90) in blue.'),'natural opening');
-            check(text.includes('Made from mesh.') && text.includes('lace-up closure and cushioned footbed'),'features as prose');
+            check(text.includes('Nike Air Max 90 running shoes in blue.'),'natural opening');
+            check(text.includes('Made from mesh.') && text.includes('lace-up fastening') && text.includes('cushioned footbed'),'features as prose');
             check(text.includes('good pre-owned condition'),'condition');
             check(!text.includes('Brand:') && !text.includes('Material:'),'no field dump');
             check(!text.includes('Ships') && !text.includes('flawless') && !text.includes('tags'),'no invented claims');
             check(buildMarketplaceDescription({...item,notes:'Small scuff on left heel.'})==='Small scuff on left heel.','seller description preserved');
             check(composeListingDescription({})==='','empty input');
+        """)
+
+    def test_flyp_private_copy_fields_and_item_sku_are_separate(self):
+        self.evaluate("""
+            const item={itemName:'Nike sneakers',brand:'Nike',sku:'0007',manufacturerSku:'STYLE-123',purchasePrice:0,privateNotes:'Bin B; receipt in folder',price:45,notes:'Buyer description.'};
+            const map=getMarketplaceMap(item);
+            check(map.flyp.manufacturerSku==='STYLE-123' && map.flyp.sku==='0007','manufacturer and inventory codes remain distinct');
+            check(map.flyp.costOfGoods===0,'zero cost preserved');
+            const note=buildPrivateListingNote(item);
+            check(note.includes('Inventory SKU: 0007') && note.includes('STYLE-123') && note.includes('$0.00') && note.includes('Bin B'),'complete private note');
+            check(map.flyp.description==='Buyer description.' && map.ebay.description==='Buyer description.' && map.poshmark.description==='Buyer description.','private data never enters buyer description');
+            const fields=marketplaceFormFields(item,'flyp');
+            check(fields['Cost of Goods']===0 && fields['Note to Self']===note,'Flyp private fields exported');
+            check(!Object.hasOwn(marketplaceFormFields(item,'ebay'),'Note to Self'),'other marketplace forms omit private notes');
+            check(!marketplaceFormSummary(item,'flyp').includes('Bin B') && !marketplaceFormSummary(item,'flyp').includes('Cost of Goods'),'generic summary omits private fields');
+            check(resellerSpreadsheetRow(item).Notes==='Bin B; receipt in folder','private spreadsheet notes');
+            check(!buildPrivateListingNote({itemName:'Unknown'}).includes('Cost of goods:'),'unknown cost not assumed free');
+        """)
+
+    def test_description_polish_explains_confirmed_features_and_adapts_fit(self):
+        self.evaluate("""
+            const shoe=composeListingDescription({brand:'Nike',styleModel:'Nike Air Max 90',productType:'sneakers',material:'mesh',size:'8',gender:'Women',keyFeatures:'lace-up closure, cushioned footbed, low-top',condition:'good'});
+            check(!shoe.includes('Nike Nike'),'brand not repeated');
+            check(shoe.includes('adjust how securely') && shoe.includes('padding underfoot'),'features explained');
+            check(shoe.includes('a low-top profile'),'natural detail phrase');
+            check(shoe.includes('Women’s size 8') && shoe.includes('pair you already wear'),'footwear-specific fit');
+            check(shoe.indexOf('Made from')<shoe.indexOf('Pair with'),'construction before styling');
+            const bag=composeListingDescription({itemName:'Coach Crossbody Bag',brand:'Coach',productType:'bag',keyFeatures:'adjustable strap',size:'small'});
+            check(bag.includes('change the carrying length') && bag.includes('dimensions'),'bag-specific copy');
+            const shirt=composeListingDescription({itemName:'Linen V-Neck Long Sleeve Blouse',size:'M'});
+            check(shirt.includes('a V-neckline') && shirt.includes('long sleeves') && shirt.includes('similar garment'),'garment construction and fit');
+            check(!composeListingDescription({itemName:'Unlined jacket not lined'}).includes('a lining'),'negated feature not invented');
+            check(!composeListingDescription({itemName:'Sneakers',keyFeatures:'no cushioned footbed'}).includes('padding underfoot'),'no negated benefit');
+        """)
+
+    def test_description_has_item_specific_context_and_no_search_term_dump(self):
+        self.evaluate("""
+            const text=composeListingDescription({itemName:'New Balance Numeric 440 V2 Sneakers Black Men Size 11 Suede',brand:'New Balance',category:'shoes',condition:'good'});
+            check(text.includes('New Balance Numeric 440 V2 Sneakers in Black.'),'identity leads');
+            check(text.includes('Numeric skate line') && text.includes('denim, cargo pants'),'context and styling');
+            check(text.includes('Made from Suede.') && text.includes('Men’s size 11'),'material and fit');
+            check(text.split('\\n\\n').length>=3,'readable paragraphs');
+            const jeans=composeListingDescription({itemName:'Madewell High Rise Wide Leg Jeans',brand:'Madewell',condition:'fair'});
+            check(jeans.includes('high-rise waist and wide-leg silhouette'),'different item has different narrative');
+            check(!jeans.includes('skate line'),'no cross-item context');
+            const basic=composeListingDescription({itemName:'Black sneakers',brand:'Brand',researchTerms:['y2k'],condition:'good'});
+            check(!basic.includes('Features include y2k') && !basic.includes('Details include y2k'),'style is not a physical feature');
+            check(composeListingDescription({itemName:'Linen V-Neck Long Sleeve Blouse'}).includes('long sleeves'),'title details become prose');
+            check(!basic.includes('cushioned') && !basic.includes('shipping') && !basic.includes('authentic'),'no unsupported claims');
         """)
 
     def test_platform_form_fields_and_limits(self):
@@ -233,6 +300,36 @@ class FrontendTests(unittest.TestCase):
             check(buildGeneralResearchQuery({...state,brand:'Nike',category:'bags'})==='New Balance sneakers','other fields ignored');
             check(buildGeneralResearchQuery({...state,itemName:''})==='','optional fields cannot replace title');
             check(buildGeneralResearchQuery({...state,itemName:'New Balance 440 V2 sneakers'})==='New Balance 440 V2 sneakers','title model preserved');
+        """)
+
+    def test_related_seo_expands_beyond_title_with_distinct_tags(self):
+        self.evaluate("""
+            const state={itemName:'New Balance Numeric 440 V2 Sneakers Black Men Size 11 Suede',brand:'New Balance',category:'shoes'};
+            const result=buildSearchSuggestions(state);
+            check(result.keywords.some(k=>k.toLowerCase()==='new balance skateboarding shoes'),'brand/product knowledge');
+            check(result.keywords.some(k=>k.toLowerCase()==='suede skate shoes'),'material/context phrase beyond title');
+            const tags=result.hashtags.split(', ');
+            check(tags.includes('Skatewear') && tags.includes('Streetwear'),'discovery tags');
+            check(!tags.includes(state.itemName),'no title copied as tag');
+            check(!tags.some(t=>t.toLowerCase().includes('size 11')),'size queries differ from style tags');
+            check(tags.every(t=>t.length<=25),'platform style tag length');
+            const regular=buildSearchSuggestions({...state,itemName:'New Balance 990 Sneakers',styleModel:'990'});
+            check(!regular.hashtags.includes('Skatewear'),'not every New Balance shoe is a skate shoe');
+            check(!result.keywords.join(' ').includes('Nike'),'no unrelated brands');
+        """)
+
+    def test_style_expansions_are_specific_to_listing(self):
+        self.evaluate("""
+            const first=buildSearchSuggestions({brand:'Madewell',itemName:'Madewell High Rise Wide Leg Jeans',category:'bottoms'});
+            check(first.keywords.some(k=>k.includes('high waisted')),'fit synonym');
+            check(first.hashtags.includes('Wide Leg') && first.hashtags.includes('Denim'),'style and taxonomy');
+            check(!first.hashtags.includes('Boho') && !first.hashtags.includes('Y2K'),'no unconfirmed trends');
+            const next=buildSearchSuggestions({brand:'Coach',itemName:'Coach Floral Crossbody Bag',category:'bags'});
+            check(next.keywords.some(k=>k.includes('hands free')),'use context');
+            check(next.hashtags.includes('Crossbody') && next.hashtags.includes('Floral'),'bag tags');
+            check(!next.hashtags.includes('Wide Leg') && !next.hashtags.includes('Denim'),'no prior-item leakage');
+            const approved=buildSearchSuggestions({itemName:'Black shoes',productType:'shoes',researchTerms:['minimalist']});
+            check(approved.hashtags.includes('Minimalist'),'approved market wording expands');
         """)
 
     def test_research_empty_message_distinguishes_missing_and_filtered_results(self):

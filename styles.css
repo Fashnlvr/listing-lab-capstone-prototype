@@ -3202,3 +3202,17 @@ footer .text-uppercase {
 .navbar-toggler .navbar-toggler-icon {
   filter: brightness(0) invert(1);
 }
+
+/* Compact individual tag copying uses the existing purple button treatment. */
+.create-listing-page .tag-copy-chip {
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  line-height: 1.3;
+  white-space: normal;
+  text-align: left;
+}
+
+.tag-copy-options:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+}
