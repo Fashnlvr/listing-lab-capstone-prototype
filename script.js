@@ -372,32 +372,63 @@ function duplicateListing(id) {
   return addListing(duplicate) ? duplicate : null;
 }
 
-function getTemplates() {
+const CORE_TEMPLATE_DEFINITIONS = Object.freeze([
+  ["standard", "General Resale", "", "Compare any provided measurements with an item you already own to check the fit or scale."],
+  ["shoes", "Shoes & Boots", "shoes", "For fit, compare any provided outsole measurements with a pair you own. For boots, also review shaft height and calf measurements when available."],
+  ["bags", "Handbags & Bags", "bags", "Review any provided width, height, depth and strap or handle drop to check the bag’s size and carrying position."],
+  ["tops", "Tops & Sweaters", "tops", "Compare any provided chest, shoulder, length and sleeve measurements with a similar top or knit you own."],
+  ["bottoms", "Pants & Jeans", "bottoms", "Compare any provided waist, rise, inseam, hip and leg-opening measurements with a pair that fits you well."],
+  ["shorts", "Shorts", "shorts", "Compare any provided waist, rise, inseam, hip and leg-opening measurements with shorts you already wear."],
+  ["skirts", "Skirts", "skirts", "Review any provided waist, hip and length measurements to check the fit and where the hem will fall."],
+  ["dresses", "Dresses & Jumpsuits", "dresses", "Compare any provided bust, waist, hip and length measurements with a similar garment. For jumpsuits or rompers, also check rise and inseam when available."],
+  ["outerwear", "Jackets, Coats & Blazers", "outerwear", "Compare any provided chest, shoulder, length and sleeve measurements with outerwear you own, allowing for your preferred layers underneath."],
+  ["activewear", "Activewear & Swimwear", "activewear", "Compare any provided measurements with similar activewear or swimwear you own. Check the stated size and fit details for your preferred coverage and fit."],
+  ["jewelry", "Jewelry & Watches", "jewelry", "Review any provided chain length, drop, ring size, wrist size or case dimensions to check the scale and fit."],
+  ["accessories", "Accessories", "accessories", "Review any provided length, width, circumference or other dimensions for the accessory’s intended fit and use."],
+  ["other", "Other / Miscellaneous", "other", "Check any provided dimensions and product details against the size or specifications you need."],
+].map((definition) => Object.freeze(definition)));
+
+function isBuiltInTemplate(id) {
+  return CORE_TEMPLATE_DEFINITIONS.some(([key]) => id === `system:${key}`);
+}
+
+function getSystemTemplates() {
+  return CORE_TEMPLATE_DEFINITIONS.map(([key, name, category, measurementsReminder]) => buildTemplateRecord({
+    id: `system:${key}`, name, category, description: "{{description}}", keywords: "", tags: "{{tags}}",
+    measurementsReminder, conditionDisclosure: "{{flaws}}",
+    shippingNotes: "Please review the shipping options and any charges shown at checkout.",
+    updatedAt: "2026-10-29T12:00:00.000Z",
+  }));
+}
+
+function getCustomTemplates() {
   const raw = safeStorageGet(STORAGE_KEYS.templates);
-  if (!raw) return [];
-  const parsed = safeJsonParse(raw, []);
-  return Array.isArray(parsed) ? parsed.filter((template) => template && typeof template === "object").map((template) => buildTemplateRecord(template)) : [];
+  const parsed = raw ? safeJsonParse(raw, []) : [];
+  return Array.isArray(parsed) ? parsed.filter((template) => template && typeof template === "object" && !isBuiltInTemplate(template.id))
+    .map((template) => buildTemplateRecord(template)) : [];
+}
+
+function getTemplates() {
+  return [...getSystemTemplates(), ...getCustomTemplates()];
 }
 
 function saveTemplates(templates) {
-  return safeStorageSet(STORAGE_KEYS.templates, JSON.stringify(templates));
+  return safeStorageSet(STORAGE_KEYS.templates, JSON.stringify(templates.filter((template) => !isBuiltInTemplate(template.id))));
 }
 
 function upsertTemplate(template) {
   const normalizedTemplate = buildTemplateRecord(template);
-  const templates = getTemplates();
+  if (isBuiltInTemplate(normalizedTemplate.id)) return false;
+  const templates = getCustomTemplates();
   const idx = templates.findIndex((item) => item.id === normalizedTemplate.id);
-  if (idx >= 0) {
-    templates[idx] = normalizedTemplate;
-  } else {
-    templates.unshift(normalizedTemplate);
-  }
+  if (idx >= 0) templates[idx] = normalizedTemplate;
+  else templates.unshift(normalizedTemplate);
   return saveTemplates(templates);
 }
 
 function removeTemplate(id) {
-  const templates = getTemplates().filter((template) => template.id !== id);
-  return saveTemplates(templates);
+  if (isBuiltInTemplate(id)) return false;
+  return saveTemplates(getCustomTemplates().filter((template) => template.id !== id));
 }
 
 function getTemplateById(id) {
@@ -407,6 +438,7 @@ function getTemplateById(id) {
 function buildTemplateRecord(template = {}) {
   return {
     id: template.id || uid(),
+    isBuiltIn: isBuiltInTemplate(template.id),
     name: String(template.name || "").trim(),
     titlePattern: String(template.titlePattern || "").trim(),
     description: String(template.description || "").trim(),
@@ -457,7 +489,20 @@ function listingTemplateValues(state) {
   const suggestions = buildSearchSuggestions({ ...state, templateTags: "" });
   return { ...facts, category: prettyCategory(state.category), condition: prettyCondition(state.condition),
     price: Number(state.price) > 0 ? `$${Number(state.price).toFixed(2)}` : "",
-    description: composeListingDescription(state), keywords: suggestions.keywords.join(", "), tags: suggestions.hashtags };
+    description: composeListingDescription(state), keywords: suggestions.hashtags, tags: suggestions.hashtags };
+}
+
+function templatePreviewValuesFor(template) {
+  const samples = {
+    shoes: ["sneakers", "8", "suede"], bags: ["handbag", "", "leather"], tops: ["sweater", "M", "cotton"],
+    bottoms: ["jeans", "30", "denim"], shorts: ["shorts", "M", "cotton"], skirts: ["skirt", "M", "linen"],
+    dresses: ["dress", "M", "cotton"], outerwear: ["blazer", "M", "wool blend"], activewear: ["leggings", "M", "nylon"],
+    jewelry: ["necklace", "", ""], accessories: ["scarf", "", ""], other: ["collectible", "", ""],
+  };
+  if (!template?.category || !samples[template.category]) return listingTemplateValues({ ...TEMPLATE_TOKEN_SAMPLES, category: "outerwear", condition: "good", price: 48 });
+  const [productType, size, material] = samples[template.category];
+  return listingTemplateValues({ brand: "Example Brand", productType, itemName: `Example Brand ${productType}`, size,
+    material, color: "navy", category: template.category, condition: "good", price: 48 });
 }
 
 function renderListingTemplate(text, values) {
@@ -1114,7 +1159,7 @@ function buildPrivateListingNote(listing) {
     if (Number.isFinite(Number(listing.pricingPlan.minSale))) lines.push(`Minimum sale: $${Number(listing.pricingPlan.minSale).toFixed(2)}`);
     if (Number.isFinite(Number(listing.pricingPlan.targetPrice))) lines.push(`Target price: $${Number(listing.pricingPlan.targetPrice).toFixed(2)}`);
   }
-  if (listing.privateNotes) lines.push(`Private notes: ${String(listing.privateNotes).trim()}`);
+  if (listing.privateNotes) lines.push(`Notes to self: ${String(listing.privateNotes).trim()}`);
   return lines.join("\n");
 }
 
@@ -1234,9 +1279,6 @@ function buildExportSummary(listing) {
   if (listing.notes) {
     lines.push("");
     lines.push(`Description: ${listing.notes}`);
-  }
-  if (listing.keywords) {
-    lines.push(`Keywords: ${listing.keywords}`);
   }
   if (listing.hashtags) {
     lines.push(`Tags: ${listing.hashtags}`);
@@ -1719,16 +1761,20 @@ function buildSearchSuggestions(state) {
   });
   const orderedKeywords = [];
   [...keywords.slice(0, 16), ...relatedPhrases, ...keywords.slice(16)].forEach((term) => pushUnique(orderedKeywords, term));
-  // Tags are discovery labels, not a second copy of long buyer queries.
+  // One concise list combines discovery labels with essential buyer phrases.
   const tags = [];
+  const preferredPhrases = [brand && product ? `${brand} ${product}` : "", model && product ? `${model} ${product}` : "",
+    material && product ? `${material} ${product}` : "", ...vocabulary.aliases.slice(-3)];
   [...String(state.templateTags || "").split(","), ...vocabulary.styles,
-    ...(state.researchTerms || []), material, ...features, ...vocabulary.taxonomy,
-    product, color, model, brand,
+    ...(state.researchTerms || []), material, ...features, product, model, brand,
+    ...preferredPhrases, ...vocabulary.taxonomy, color,
   ].forEach((value) => {
     const tag = clean(value).replace(/^#+/, "");
+    // Prefer one useful label over several near-identical title permutations.
+    if (normalize(tag) === "skater style" && tags.some((entry) => normalize(entry) === "skatewear")) return;
     if (tag && tag.length <= 25) pushUnique(tags, tag);
   });
-  return { keywords: orderedKeywords.slice(0, 60), hashtags: tags.slice(0, 36).join(", ") };
+  return { keywords: orderedKeywords.slice(0, 60), hashtags: tags.slice(0, 18).join(", ") };
 }
 
 function buildGeneralResearchQuery(state) {
@@ -1895,7 +1941,7 @@ function initNewListingPage() {
       condition: fields.condition.value,
       price: Number.isFinite(price) ? price : NaN,
       notes: fields.notes.value.trim(),
-      keywords: fields.keywords.value.trim(),
+      keywords: fields.keywords?.value.trim() || "",
       hashtags: fields.hashtags?.value.trim() || "",
       status: "draft",
     };
@@ -1906,11 +1952,11 @@ function initNewListingPage() {
     state.marketResearch = researchMatches ? marketResearch : null;
     state.researchTerms = researchMatches ? selectedResearchTerms : [];
     const templateValues = appliedTemplate ? listingTemplateValues(state) : null;
-    const activeKeywords = appliedTemplate ? renderListingTemplate(appliedTemplate.keywords, templateValues) : templateKeywords;
-    state.templateTags = appliedTemplate ? renderListingTemplate(appliedTemplate.tags, templateValues) : "";
+    const legacyTerms = appliedTemplate ? renderListingTemplate(appliedTemplate.keywords, templateValues) : templateKeywords;
+    state.templateTags = mergeTemplateKeywords(appliedTemplate ? renderListingTemplate(appliedTemplate.tags, templateValues) : "", legacyTerms);
     const suggestions = buildSearchSuggestions(state);
-    state.keywords = mergeTemplateKeywords(suggestions.keywords.join(", "), activeKeywords);
     state.hashtags = suggestions.hashtags;
+    state.keywords = state.hashtags; // Compatibility for older saved records and exports.
     return state;
   }
 
@@ -1962,7 +2008,7 @@ function initNewListingPage() {
     fields.condition.value = state.condition || "";
     fields.price.value = Number.isFinite(state.price) ? String(state.price) : "";
     fields.notes.value = state.notes || "";
-    fields.keywords.value = state.keywords || "";
+    if (fields.keywords) fields.keywords.value = state.keywords || "";
     if (fields.hashtags) fields.hashtags.value = state.hashtags || "";
   }
 
@@ -2013,22 +2059,34 @@ function initNewListingPage() {
     nodes.templateName.value = template?.name || "";
     if (nodes.templateTitlePattern) nodes.templateTitlePattern.value = template?.titlePattern || "";
     nodes.templateDescription.value = template?.description || "";
-    nodes.templateKeywords.value = template?.keywords || "";
-    nodes.templateTags.value = template?.tags || "";
+
+    nodes.templateTags.value = mergeTemplateKeywords(template?.tags || "", template?.keywords || "");
     nodes.templateShippingNotes.value = template?.shippingNotes || "";
     if (nodes.templateConditionDisclosure) nodes.templateConditionDisclosure.value = template?.conditionDisclosure || "";
     if (nodes.templateMeasurementsReminder) nodes.templateMeasurementsReminder.value = template?.measurementsReminder || "";
+    [nodes.templateName, nodes.templateTitlePattern, nodes.templateDescription, nodes.templateKeywords, nodes.templateTags,
+      nodes.templateShippingNotes, nodes.templateConditionDisclosure, nodes.templateMeasurementsReminder]
+      .filter(Boolean).forEach((field) => { field.readOnly = Boolean(template?.isBuiltIn); });
+    nodes.deleteTemplateBtn.disabled = Boolean(template?.isBuiltIn);
+    nodes.saveTemplateBtn.textContent = template?.isBuiltIn ? "Save Copy" : "Save";
   }
 
   function renderTemplateOptions(selectedId = "") {
     if (!nodes.templateSelect) return;
     const templates = getTemplates();
     nodes.templateSelect.innerHTML = '<option value="">Choose template</option>';
-    templates.forEach((template) => {
-      const option = document.createElement("option");
-      option.value = template.id;
-      option.textContent = template.name || "Untitled Template";
-      nodes.templateSelect.appendChild(option);
+    [["Built-in Templates", templates.filter((template) => template.isBuiltIn)],
+      ["My Templates", templates.filter((template) => !template.isBuiltIn)]].forEach(([label, items]) => {
+      if (!items.length) return;
+      const group = document.createElement("optgroup");
+      group.label = label;
+      items.forEach((template) => {
+        const option = document.createElement("option");
+        option.value = template.id;
+        option.textContent = template.name || "Untitled Template";
+        group.append(option);
+      });
+      nodes.templateSelect.append(group);
     });
     nodes.templateSelect.value = selectedId || "";
   }
@@ -2036,6 +2094,10 @@ function initNewListingPage() {
   function applyTemplateToForm(template) {
     if (!template) return;
     const current = getFormState();
+    if (template.isBuiltIn && template.category && current.category && template.category !== current.category) {
+      nodes.templateStatus.textContent = `Choose the ${prettyCategory(current.category)} template or General Resale for this item.`;
+      return false;
+    }
 
     if (!fields.category.value && template.category) fields.category.value = LEGACY_PHOTO_CATEGORIES[template.category] || template.category;
     if (!fields.condition.value && template.condition) fields.condition.value = template.condition;
@@ -2053,6 +2115,7 @@ function initNewListingPage() {
     }
 
     updatePreview();
+    return true;
   }
 
   function updateCompleteness(state) {
@@ -2133,8 +2196,7 @@ function initNewListingPage() {
         : "Please review the photos for overall item details and condition.",
       "Message with any questions before purchase.",
     ].join("\n");
-    fields.keywords.value = state.keywords;
-    state.keywords = fields.keywords.value;
+    if (fields.keywords) fields.keywords.value = state.keywords;
 
     if (nodes.listingCardTitle) nodes.listingCardTitle.textContent = title;
     if (nodes.listingCardPrice) nodes.listingCardPrice.textContent = price;
@@ -2309,7 +2371,7 @@ function initNewListingPage() {
     if (research.terms.length) {
       const caption = document.createElement("p");
       caption.className = "small mb-2";
-      caption.textContent = "Market wording: select terms that describe your item to add them to Keywords and Tags.";
+      caption.textContent = "Market wording: select terms that describe your item to add them to Tags.";
       termBox.append(caption);
       research.terms.forEach(({ term, listingCount }) => {
         const label = document.createElement("label");
@@ -2345,9 +2407,6 @@ function initNewListingPage() {
     nodes.formulaSummary.textContent = "";
     nodes.formulaStatus.textContent = "";
 
-    if (!fields.keywords.value.trim()) {
-      fields.keywords.value = generateKeywordsFromState(state).join(", ");
-    }
     updatePreview();
   }
 
@@ -2572,24 +2631,26 @@ function initNewListingPage() {
       }
 
       const selectedId = nodes.templateSelect.value;
+      const copyingBuiltIn = isBuiltInTemplate(selectedId);
       const template = buildTemplateRecord({
-        id: selectedId || uid(),
-        name,
+        id: copyingBuiltIn ? uid() : selectedId || uid(),
+        name: copyingBuiltIn ? `${name} Copy` : name,
         titlePattern: nodes.templateTitlePattern?.value.trim() || getTemplateById(selectedId)?.titlePattern || "",
         description: nodes.templateDescription.value.trim(),
-        keywords: nodes.templateKeywords.value.trim(),
+        keywords: "",
         tags: nodes.templateTags.value.trim(),
         shippingNotes: nodes.templateShippingNotes.value.trim(),
         conditionDisclosure: nodes.templateConditionDisclosure?.value.trim() || "",
         measurementsReminder: nodes.templateMeasurementsReminder?.value.trim() || "",
-        category: fields.category.value,
+        category: fields.category.value || getTemplateById(selectedId)?.category || "",
         condition: fields.condition.value,
         updatedAt: new Date().toISOString(),
       });
 
       if (!upsertTemplate(template)) { nodes.templateStatus.textContent = "Template could not be saved. Browser storage may be full or unavailable."; return; }
       renderTemplateOptions(template.id);
-      nodes.templateStatus.textContent = "Template saved.";
+      fillTemplateEditor(template);
+      nodes.templateStatus.textContent = copyingBuiltIn ? "Editable copy saved." : "Template saved.";
     });
   }
 
@@ -2600,8 +2661,7 @@ function initNewListingPage() {
         nodes.templateStatus.textContent = "Select a template to apply.";
         return;
       }
-      applyTemplateToForm(template);
-      nodes.templateStatus.textContent = "Template applied.";
+      if (applyTemplateToForm(template)) nodes.templateStatus.textContent = "Template applied.";
     });
   }
 
@@ -2754,7 +2814,7 @@ function initTemplatesPage() {
       titlePattern: fields.titlePattern?.value.trim() || "",
       description: fields.description.value.trim(),
       shippingNotes: fields.shippingNotes.value.trim(),
-      keywords: fields.keywords.value.trim(),
+      keywords: fields.keywords?.value.trim() || "",
       tags: fields.tags.value.trim(),
       conditionDisclosure: fields.conditionDisclosure.value.trim(),
       measurementsReminder: fields.measurementsReminder.value.trim(),
@@ -2768,10 +2828,13 @@ function initTemplatesPage() {
     if (fields.titlePattern) fields.titlePattern.value = template?.titlePattern || "";
     fields.description.value = template?.description || "";
     fields.shippingNotes.value = template?.shippingNotes || "";
-    fields.keywords.value = template?.keywords || "";
-    fields.tags.value = template?.tags || "";
+    if (fields.keywords) fields.keywords.value = template?.keywords || "";
+    fields.tags.value = mergeTemplateKeywords(template?.tags || "", template?.keywords || "");
     fields.conditionDisclosure.value = template?.conditionDisclosure || "";
     fields.measurementsReminder.value = template?.measurementsReminder || "";
+    Object.values(fields).filter(Boolean).forEach((field) => { field.readOnly = Boolean(template?.isBuiltIn); });
+    saveBtn.disabled = Boolean(template?.isBuiltIn);
+    deleteBtn.disabled = Boolean(template?.isBuiltIn);
     renderPreview();
   }
 
@@ -2796,11 +2859,12 @@ function initTemplatesPage() {
 
   function renderPreview() {
     const template = getEditorTemplate();
-    previewNodes.description.textContent = renderTemplateTokens(template.description, templatePreviewValues) || templatePreviewValues.description;
-    previewNodes.shipping.textContent = renderTemplateTokens(template.shippingNotes, templatePreviewValues) || "Add reusable shipping notes.";
-    previewNodes.keywords.textContent = [renderTemplateTokens(template.keywords, templatePreviewValues), template.tags ? `Tags: ${renderTemplateTokens(template.tags, templatePreviewValues)}` : ""].filter(Boolean).join("\n\n") || `${templatePreviewValues.keywords}\n\nTags: ${templatePreviewValues.tags}`;
-    previewNodes.condition.textContent = renderTemplateTokens(template.conditionDisclosure, templatePreviewValues) || "Optional condition disclosure appears here.";
-    previewNodes.measurements.textContent = renderTemplateTokens(template.measurementsReminder, templatePreviewValues) || "Optional measurements reminder appears here.";
+    const previewValues = templatePreviewValuesFor(template);
+    previewNodes.description.textContent = renderTemplateTokens(template.description, previewValues) || previewValues.description;
+    previewNodes.shipping.textContent = renderTemplateTokens(template.shippingNotes, previewValues) || "Add reusable shipping notes.";
+    previewNodes.keywords.textContent = renderTemplateTokens(mergeTemplateKeywords(template.tags, template.keywords), previewValues) || previewValues.tags;
+    previewNodes.condition.textContent = renderTemplateTokens(template.conditionDisclosure, previewValues) || "Optional condition disclosure appears here.";
+    previewNodes.measurements.textContent = renderTemplateTokens(template.measurementsReminder, previewValues) || "Optional measurements reminder appears here.";
   }
 
   function renderLibrary() {
@@ -2826,22 +2890,22 @@ function initTemplatesPage() {
         <div class="saved-template-card__header">
           <div>
             <p class="saved-template-card__name mb-1">${escapeHtml(template.name || "Untitled Template")}</p>
-            <p class="saved-template-card__meta mb-0">Updated ${escapeHtml(formatDate(template.updatedAt))}</p>
+            <p class="saved-template-card__meta mb-0">${template.isBuiltIn ? "Duplicate to customize" : `Updated ${escapeHtml(formatDate(template.updatedAt))}`}</p>
           </div>
-          <span class="dashboard-sku">Template</span>
+          <span class="dashboard-sku">${template.isBuiltIn ? "Built-in" : "Custom"}</span>
         </div>
-        <pre class="saved-template-card__preview">${escapeHtml(renderTemplateTokens(template.titlePattern || template.description, templatePreviewValues) || "No preview yet.")}</pre>
+        <pre class="saved-template-card__preview">${escapeHtml(template.isBuiltIn ? template.measurementsReminder : renderTemplateTokens(template.titlePattern || template.description, templatePreviewValues) || "No preview yet.")}</pre>
         <div class="saved-template-card__actions">
-          <button class="btn btn-outline-secondary btn-sm" type="button" data-edit-template="${escapeHtml(template.id)}">Edit</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-edit-template="${escapeHtml(template.id)}">${template.isBuiltIn ? "View" : "Edit"}</button>
           <button class="btn btn-outline-secondary btn-sm" type="button" data-duplicate-template="${escapeHtml(template.id)}">Duplicate</button>
-          <button class="btn btn-outline-danger btn-sm" type="button" data-delete-template="${escapeHtml(template.id)}">Delete</button>
+          <button class="btn btn-outline-danger btn-sm" type="button" data-delete-template="${escapeHtml(template.id)}" ${template.isBuiltIn ? "disabled" : ""}>Delete</button>
         </div>
       `;
 
       card.querySelector("[data-edit-template]").addEventListener("click", () => {
         fillEditor(template);
         renderLibrary();
-        libraryStatus.textContent = `${template.name || "Template"} loaded into the editor.`;
+        libraryStatus.textContent = template.isBuiltIn ? "Built-in template. Duplicate it to create your own editable version." : `${template.name || "Template"} loaded into the editor.`;
       });
 
       card.querySelector("[data-duplicate-template]").addEventListener("click", () => {

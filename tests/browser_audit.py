@@ -64,7 +64,7 @@ with sync_playwright() as pw:
   goto(p)
   output=p.evaluate("renderTemplateTokens('{{brand}} {itemName}', {brand:'Nike',itemName:'Blue'})")
   assert output=='Nike Blue',repr(output)
-  fill(p);p.evaluate("upsertTemplate({id:'test',name:'Test',description:'{{brand}} item with {{flaws}}',keywords:'sporty, running',category:'shoes'})");p.reload(wait_until='domcontentloaded');fill(p);p.locator('#templateSelect').select_option('test');p.locator('#applyTemplateBtn').click();assert 'sporty' in p.locator('#keywords').input_value(),'Template keywords discarded'
+  fill(p);p.evaluate("upsertTemplate({id:'test',name:'Test',description:'{{brand}} item with {{flaws}}',keywords:'sporty, running',category:'shoes'})");p.reload(wait_until='domcontentloaded');fill(p);p.locator('#templateSelect').select_option('test');p.locator('#applyTemplateBtn').click();assert 'sporty' in p.locator('#hashtags').input_value(),'Template keywords discarded'
  def dynamic_templates(p,c):
   goto(p)
   p.evaluate("upsertTemplate({id:'dynamic',name:'Dynamic',description:'{{description}}',keywords:'{{brand}} {{color}} {{productType}}',tags:'{{styleModel}}, {{material}}',shippingNotes:'Careful packaging for {{color}} {{productType}}.'})")
@@ -72,14 +72,14 @@ with sync_playwright() as pw:
   assert 'Shipping:' in p.locator('#notes').input_value();assert 'Numeric 440 V2' in p.locator('#hashtags').input_value()
   p.locator('#notes').fill(p.locator('#notes').input_value()+'\n\nSmall heel scuff.');p.locator('#color').fill('Blue');p.locator('#applyTemplateBtn').click()
   text=p.locator('#notes').input_value();assert 'Careful packaging for Blue Sneakers.' in text;assert 'Careful packaging for Black' not in text;assert text.count('Shipping:')==1;assert 'Small heel scuff.' in text
-  assert 'New Balance Blue Sneakers' in p.locator('#keywords').input_value()
+  assert 'New Balance Blue Sneakers' in p.locator('#hashtags').input_value()
   p.locator('#saveDraftBtn').click();p.reload(wait_until='domcontentloaded');p.locator('#loadDraftBtn').click();p.locator('#color').fill('Red');assert 'Careful packaging for Red Sneakers.' in p.locator('#notes').input_value();assert 'Small heel scuff.' in p.locator('#notes').input_value()
   p.locator('#notes').fill('My custom description and shipping agreement.');p.locator('#color').fill('Green');assert p.locator('#notes').input_value()=='My custom description and shipping agreement.'
  def distinct_seo(p,c):
   goto(p);p.locator('#itemName').fill('New Balance Numeric 440 V2 Sneakers Black Men Size 11 Suede');p.locator('#brand').fill('New Balance');p.locator('#category').select_option('shoes')
-  assert 'New Balance skateboarding shoes' in p.locator('#keywords').input_value();assert 'Skatewear' in p.locator('#hashtags').input_value()
+  assert 'skateboarding shoes' in p.locator('#hashtags').input_value();assert 'Skatewear' in p.locator('#hashtags').input_value()
   assert 'size 11' not in p.locator('#hashtags').input_value().lower()
-  assert p.locator('#exportKeywords').inner_text()!=p.locator('#exportHashtags').inner_text()
+  assert p.locator('#exportKeywords').count()==0 and p.locator('#keywords').count()==0
   p.locator('#itemName').fill('New Balance 990 Sneakers');assert 'Skatewear' not in p.locator('#hashtags').input_value()
   assert p.locator('#itemName').input_value()=='New Balance 990 Sneakers','Generated SEO must not rewrite title or research input'
  def flyp_copy_fields(p,c):
@@ -98,6 +98,15 @@ with sync_playwright() as pw:
   p.reload(wait_until='domcontentloaded');p.locator('#loadDraftBtn').click();assert p.locator('#manufacturerSku').input_value()=='STYLE-123';assert p.locator('#privateNotes').input_value()=='Private bin B; receipt in folder';assert p.locator('#purchasePrice').input_value()=='12.5';assert p.locator('#itemSku').input_value()==sku
   p.locator('#listingForm button[type=submit]').click();p.wait_for_url('**/dashboard.html');saved=p.evaluate('getListings()[0]');assert saved['sku']==sku and saved['manufacturerSku']=='STYLE-123' and saved['purchasePrice']==12.5 and 'Private bin B' in saved['privateNotes']
   p.locator('[data-edit]').click();p.wait_for_url('**/new-listing.html');assert p.locator('#exportManufacturerSku').inner_text()=='STYLE-123';assert p.locator('#exportCogs').inner_text()=='12.50'
+ def essential_tags_only(p,c):
+  c.grant_permissions(['clipboard-read','clipboard-write']);goto(p)
+  assert p.locator('#keywords').count()==0 and p.locator('#exportKeywords').count()==0 and p.locator('#templateKeywords').count()==0
+  p.locator('#itemName').fill('New Balance Numeric 440 V2 Sneakers Black Men Size 11 Suede');p.locator('#brand').fill('New Balance');p.locator('#category').select_option('shoes')
+  tags=p.locator('#hashtags').input_value().split(', ');assert len(tags)<=18 and 'skateboarding shoes' in tags and 'New Balance' in tags
+  p.locator('#individualTagCopies button').first.click();assert p.evaluate('navigator.clipboard.readText()')==tags[0]
+  p.locator('#saveDraftBtn').click();p.reload(wait_until='domcontentloaded');p.locator('#loadDraftBtn').click();assert p.locator('#hashtags').input_value().split(', ')==tags
+  goto(p,'templates.html');assert p.locator('#libraryTemplateKeywords').count()==0;assert p.locator('#libraryTemplateTags').count()==1
+  p.locator('#libraryTemplateName').fill('Tags Test');p.locator('#libraryTemplateTags').fill('skatewear, suede');p.locator('#saveLibraryTemplateBtn').click();assert 'skatewear' in p.locator('#templatePreviewKeywords').inner_text()
  def edit(p,c):
   goto(p);fill(p);p.locator('#listingForm button[type=submit]').click();p.wait_for_url('**/dashboard.html');p.locator('[data-status-id]').select_option('sold');p.locator('[data-edit]').click();p.wait_for_url('**/new-listing.html');assert p.locator('#listingForm button[type=submit]').inner_text()=='Update Listing','Editing button says Save Listing';p.locator('#listingForm button[type=submit]').click();p.wait_for_url('**/dashboard.html');assert p.locator('[data-status-id]').input_value()=='sold','Edit changed sold status'
  def search(p,c):
@@ -113,7 +122,7 @@ with sync_playwright() as pw:
   def mock(route):
    query=route.request.post_data_json['query'];calls.append(query)
    route.fulfill(json={'researchMode':'sold-leads-v2','query':query,'searchedAt':'2099-01-01T00:00:00Z','cached':False,'warnings':[],'terms':[{'term':'breathable','listingCount':2}],'listings':[{'title':'Nike Blue Shoes','url':'https://www.ebay.com/itm/123','marketplace':'eBay','snippet':'Sold $45.00','displayedPrice':45,'soldVerified':False}]})
-  p.route('**/api/market_research',mock);goto(p);fill(p);p.locator('#runApiResearchBtn').click();p.locator('#compResults a').wait_for();p.locator('#marketTermSuggestions input').check();assert 'breathable' in p.locator('#keywords').input_value();p.locator('#runApiResearchBtn').click();assert len(calls)==1
+  p.route('**/api/market_research',mock);goto(p);fill(p);p.locator('#runApiResearchBtn').click();p.locator('#compResults a').wait_for();p.locator('#marketTermSuggestions input').check();assert 'breathable' in p.locator('#hashtags').input_value();p.locator('#runApiResearchBtn').click();assert len(calls)==1
   p.locator('#compResults input[type=number]').fill('42');p.locator('#compResults input[type=checkbox]').check();p.locator('#compResults button').click();assert float(p.locator('#manualComp1').input_value())==42;p.locator('#applyCompPriceBtn').click();assert p.locator('#price').input_value()=='42.00'
   p.locator('#clearDraftBtn').click();assert p.locator('#marketTermSuggestions').inner_text()=='','Market terms remain after reset'
  def exports(p,c):
@@ -124,10 +133,19 @@ with sync_playwright() as pw:
   p.locator('[data-select-id]').check()
   with p.expect_download() as download:p.locator('#exportSelectedBtn').click()
   assert download.value.failure() is None
+ def core_templates(p,c):
+  goto(p);assert p.locator('#templateSelect optgroup[label="Built-in Templates"] option').count()==13
+  p.locator('#itemName').fill('New Balance sneakers');p.locator('#brand').fill('New Balance');p.locator('#templateSelect').select_option('system:shoes');p.locator('#applyTemplateBtn').click()
+  assert p.locator('#category').input_value()=='shoes';assert 'outsole measurements' in p.locator('#notes').input_value();assert 'Shipping:' in p.locator('#notes').input_value()
+  assert 'Madewell' not in p.locator('#notes').input_value();assert p.locator('#deleteTemplateBtn').is_disabled()
+  p.locator('[data-bs-target="#templateTools"]').click();p.locator('#saveTemplateBtn').click();assert p.locator('#templateSelect').input_value()!='system:shoes';assert p.locator('#templateName').is_editable()
+  goto(p,'templates.html');p.locator('[data-edit-template="system:shoes"]').click();assert p.locator('#libraryTemplateName').get_attribute('readonly') is not None;assert p.locator('#saveLibraryTemplateBtn').is_disabled();assert p.locator('#deleteLibraryTemplateBtn').is_disabled();assert 'sneakers' in p.locator('#templatePreviewDescription').inner_text()
+  p.locator('#duplicateLibraryTemplateBtn').click();assert p.locator('#libraryTemplateName').is_editable();assert not p.locator('#saveLibraryTemplateBtn').is_disabled();p.locator('#libraryTemplateName').fill('My Shoes Policy');p.locator('#saveLibraryTemplateBtn').click();p.locator('#deleteLibraryTemplateBtn').click()
+  assert p.locator('[data-edit-template="system:shoes"]').count()==1
  def templateLibrary(p,c):
-  goto(p,'templates.html');p.locator('#libraryTemplateName').fill('Test');p.locator('#libraryTemplateDescription').fill('Reusable description');p.locator('#saveLibraryTemplateBtn').click();assert p.locator('[data-edit-template]').count()==1
-  p.locator('#duplicateLibraryTemplateBtn').click();assert p.locator('[data-edit-template]').count()==2
-  p.locator('#deleteLibraryTemplateBtn').click();assert p.locator('[data-edit-template]').count()==1
+  goto(p,'templates.html');p.locator('#libraryTemplateName').fill('Test');p.locator('#libraryTemplateDescription').fill('Reusable description');p.locator('#saveLibraryTemplateBtn').click();assert p.locator('[data-edit-template]').count()==14
+  p.locator('#duplicateLibraryTemplateBtn').click();assert p.locator('[data-edit-template]').count()==15
+  p.locator('#deleteLibraryTemplateBtn').click();assert p.locator('[data-edit-template]').count()==14
   p.locator('#skuStartNumber').fill('10');p.locator('#skuDigits').fill('3');p.locator('#saveSkuSettingsBtn').click();assert '010' in p.locator('#skuPreviewBadge').inner_text()
   p.reload(wait_until='domcontentloaded');assert p.locator('#skuStartNumber').input_value()=='10'
   p.locator('#resetSkuSettingsBtn').click();assert p.locator('#skuStartNumber').input_value()=='1'
@@ -323,7 +341,7 @@ with sync_playwright() as pw:
   assert sent[0]['searchQuery']=='New Balance sneakers';assert p.locator('#compResults a').count()==2
   assert '420' in p.locator('#compResults a').first.text_content()
   p.locator('#brand').fill('');p.locator('#category').select_option('');p.locator('#styleModel').fill('different optional model');p.locator('#runApiResearchBtn').click();assert len(sent)==1,'Other fields must not change research or its cache'
- for name,fn in [('pages and responsive layouts',smoke),('deep purple theme consistency',purple_theme),('content typography and menu consistency',content_typography),('fresh navigation and draft load',fresh),('manual comp median and persistence',comps),('all photo categories and tracking',photos),('description regeneration',description),('template substitution and keyword merge',template),('dynamic templates and seller notes',dynamic_templates),('distinct related SEO outputs',distinct_seo),('save/edit/status preservation',edit),('dashboard product search',search),('storage failure handling',storage),('pricing and cost validation',pricing),('pricing handoff and spreadsheet export',pricing_handoff_export),('research title validation',research_title_validation),('required research fields and soft refinement',required_research_fields),('abundant research listings',abundant_research),('sold research migration',sold_research_migration),('sold price cards and confirmation',sold_price_cards),('related research results and retry',related_research_retry),('static research backend error',static_backend_error),('API UI, caching and reset',research),('CSV JSON selected exports',exports),('platform form exports and copy fields',platform_exports),('template CRUD and SKU settings',templateLibrary),('per-item SKU edits and auto sequence',item_skus),('clipboard copy buttons',copies),('Flyp individual copy fields and private notes',flyp_copy_fields),('API error recovery',research_error),('marketplace sold links and tabs',popup_links),('distinct draft identities',draft_identity),('inventory backup recovery and import',inventory_recovery),('template storage failure',template_storage),('mobile navigation dropdowns',mobile_navigation),('dashboard CRUD selection and detail',dashboard_actions),('original dashboard appearance',original_dashboard)]:
+ for name,fn in [('pages and responsive layouts',smoke),('deep purple theme consistency',purple_theme),('content typography and menu consistency',content_typography),('fresh navigation and draft load',fresh),('manual comp median and persistence',comps),('all photo categories and tracking',photos),('description regeneration',description),('template substitution and keyword merge',template),('dynamic templates and seller notes',dynamic_templates),('distinct related SEO outputs',distinct_seo),('essential tags only and legacy templates',essential_tags_only),('save/edit/status preservation',edit),('dashboard product search',search),('storage failure handling',storage),('pricing and cost validation',pricing),('pricing handoff and spreadsheet export',pricing_handoff_export),('research title validation',research_title_validation),('required research fields and soft refinement',required_research_fields),('abundant research listings',abundant_research),('sold research migration',sold_research_migration),('sold price cards and confirmation',sold_price_cards),('related research results and retry',related_research_retry),('static research backend error',static_backend_error),('API UI, caching and reset',research),('CSV JSON selected exports',exports),('platform form exports and copy fields',platform_exports),('template CRUD and SKU settings',templateLibrary),('core templates fixed and custom copies',core_templates),('per-item SKU edits and auto sequence',item_skus),('clipboard copy buttons',copies),('Flyp individual copy fields and private notes',flyp_copy_fields),('API error recovery',research_error),('marketplace sold links and tabs',popup_links),('distinct draft identities',draft_identity),('inventory backup recovery and import',inventory_recovery),('template storage failure',template_storage),('mobile navigation dropdowns',mobile_navigation),('dashboard CRUD selection and detail',dashboard_actions),('original dashboard appearance',original_dashboard)]:
   if len(sys.argv)<2 or sys.argv[1] in name:run(name,fn)
  browser.close()
 http.shutdown()

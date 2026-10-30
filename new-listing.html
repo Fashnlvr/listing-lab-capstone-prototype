@@ -182,7 +182,7 @@
                     <div class="form-text" id="itemSkuHelp">Your inventory sequence number. Edit it or leave blank to auto-number.</div>
                   </div>
                   <div class="col-12">
-                    <label class="form-label" for="privateNotes">Private Notes</label>
+                    <label class="form-label" for="privateNotes">Notes to Self</label>
                     <textarea class="form-control" id="privateNotes" name="privateNotes" rows="2" placeholder="Storage location, sourcing details, receipts or reminders for yourself"></textarea>
                   </div>
                 </div>
@@ -217,7 +217,7 @@
                 <div class="collapse" id="templateTools">
                   <div class="card bg-light border-0 listing-subpanel">
                     <div class="card-body py-2">
-                      <p class="form-text">Use {{description}}, {{keywords}}, {{tags}}, or item fields such as {{brand}}, {{productType}}, {{styleModel}}, {{color}}, {{size}} and {{material}}. Applied templates follow item changes.</p>
+                      <p class="form-text">Use {{description}}, {{tags}}, or item fields such as {{brand}}, {{productType}}, {{styleModel}}, {{color}}, {{size}} and {{material}}. Applied templates follow item changes.</p>
                       <div class="row g-2 mb-2">
                         <div class="col-12">
                           <label class="form-label" for="templateName">Template Name</label>
@@ -246,9 +246,7 @@ Add any reusable buyer information below."></textarea>
                         </div>
                       </div>
                       <div class="mb-2">
-                        <label class="form-label" for="templateKeywords">Keywords</label>
-                        <input class="form-control" id="templateKeywords" placeholder="{{brand}} {{productType}}, {{material}} {{productType}}" />
-                        <label class="form-label mt-2" for="templateTags">Tags</label>
+                        <label class="form-label" for="templateTags">Tags</label>
                         <input class="form-control" id="templateTags" placeholder="{{styleModel}}, {{material}}, {{keyFeatures}}" />
                       </div>
                       <div class="d-flex flex-wrap gap-2">
@@ -337,10 +335,6 @@ Add any reusable buyer information below."></textarea>
 
 
 
-              <div class="mb-3">
-                <label class="form-label" for="keywords">Keywords</label>
-                <textarea class="form-control" name="keywords" id="keywords" rows="4" placeholder="Keywords populate from your item details" readonly></textarea>
-              </div>
 
               <div class="mb-3">
                 <label class="form-label" for="hashtags">Tags</label>
@@ -455,7 +449,7 @@ Add any reusable buyer information below."></textarea>
                   <p class="preview-section-label mb-0">Note to Self</p>
                   <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportPrivateNotes">Copy</button>
                 </div>
-                <pre id="exportPrivateNotes" data-placeholder="Your inventory SKU and private notes will appear here." class="export-copy-value mb-0"></pre>
+                <pre id="exportPrivateNotes" data-placeholder="Your inventory SKU and notes to self will appear here." class="export-copy-value mb-0"></pre>
               </section>
 
               <section class="export-copy-card">
@@ -474,13 +468,6 @@ Add any reusable buyer information below."></textarea>
                 <pre id="exportCogs" data-placeholder="Your item cost will appear here." class="export-copy-value mb-0"></pre>
               </section>
 
-              <section class="export-copy-card">
-                <div class="export-copy-card__header">
-                  <p class="preview-section-label mb-0">Keywords</p>
-                  <button class="btn btn-dark btn-sm export-copy-btn" type="button" data-copy-target="exportKeywords">Copy</button>
-                </div>
-                <pre id="exportKeywords" data-placeholder="Relevant search keywords will appear here." class="export-copy-value mb-0"></pre>
-              </section>
 
               <section class="export-copy-card export-copy-card--full">
                 <div class="export-copy-card__header">
@@ -571,6 +558,6 @@ Add any reusable buyer information below."></textarea>
     crossorigin="anonymous"
   ></script>
   <script src="config.js"></script>
-  <script src="script.js?v=20261029-flyp-copy-fields"></script>
+  <script src="script.js?v=20261029-tags-only"></script>
 </body>
 </html>

@@ -59,6 +59,27 @@ class FrontendTests(unittest.TestCase):
             check(renderTemplateTokens('Check the brand label', {brand:'Nike'})==='Check the brand label','literal prose');
         """)
 
+    def test_core_templates_are_fixed_and_custom_templates_survive(self):
+        self.evaluate("""
+            check(getTemplates().length===13,'core templates always available');
+            check(getSystemTemplates().filter(t=>t.category).length===12,'all item categories covered');
+            check(upsertTemplate({id:'mine',name:'My Template',shippingNotes:'My policy'}),'custom template saved');
+            const core=getTemplateById('system:shoes');
+            check(core.isBuiltIn && core.description==='{{description}}','dynamic core description');
+            check(!upsertTemplate({...core,name:'Overwrite'}) && !removeTemplate(core.id),'core cannot be changed or deleted');
+            core.name='Changed in memory';
+            check(getTemplateById('system:shoes').name==='Shoes & Boots','fresh immutable core');
+            const copy=duplicateTemplate('system:shoes');
+            check(copy && !copy.isBuiltIn && copy.id!=='system:shoes','editable custom duplicate');
+            check(upsertTemplate({...copy,shippingNotes:'Ships in two business days.'}),'copy editable');
+            check(getTemplateById('system:shoes').shippingNotes!==getTemplateById(copy.id).shippingNotes,'core untouched');
+            check(getTemplateById('mine').shippingNotes==='My policy','existing custom retained');
+            check(JSON.parse(localStorage.getItem(STORAGE_KEYS.templates)).every(t=>!t.isBuiltIn),'core never copied to storage');
+            localStorage.removeItem(STORAGE_KEYS.templates);
+            check(getTemplates().length===13,'core survives custom storage reset');
+            check(templatePreviewValuesFor(getTemplateById('system:shoes')).productType==='sneakers','category-specific preview');
+        """)
+
     def test_templates_follow_item_facts_without_sample_claims(self):
         self.evaluate(r"""
             const state={itemName:'New Balance Numeric 440 V2 Sneakers Black Men Size 11 Suede',brand:'New Balance',category:'shoes',condition:'good'};
@@ -177,7 +198,7 @@ class FrontendTests(unittest.TestCase):
             localStorage.setItem(STORAGE_KEYS.listings,'not JSON');
             check(getListings().length===0,'invalid JSON');
             localStorage.setItem(STORAGE_KEYS.templates,'[null,17,{"id":"ok"}]');
-            check(getTemplates().length===1,'bad template records');
+            check(getCustomTemplates().length===1 && getTemplates().length===14,'bad template records');
             localStorage.setItem(STORAGE_KEYS.draft,'[null,false,17,{"itemName":"ok"}]');
             check(getDraftQueue().length===1,'bad draft records');
         """)
@@ -300,6 +321,19 @@ class FrontendTests(unittest.TestCase):
             check(buildGeneralResearchQuery({...state,brand:'Nike',category:'bags'})==='New Balance sneakers','other fields ignored');
             check(buildGeneralResearchQuery({...state,itemName:''})==='','optional fields cannot replace title');
             check(buildGeneralResearchQuery({...state,itemName:'New Balance 440 V2 sneakers'})==='New Balance 440 V2 sneakers','title model preserved');
+        """)
+
+    def test_essential_tags_include_related_search_phrases(self):
+        self.evaluate("""
+            const state={brand:'New Balance',itemName:'New Balance Numeric 440 V2 Sneakers Black Men Size 11 Suede'};
+            const tags=buildSearchSuggestions(state).hashtags.split(', ');
+            check(tags.length<=18,'condensed essentials');
+            check(tags.includes('skateboarding shoes') && tags.includes('New Balance Sneakers'),'search phrases and discovery labels combined');
+            check(!tags.includes('Skater Style') && tags.includes('Skatewear'),'near duplicate labels condensed');
+            check(!tags.includes(state.itemName),'not a title dump');
+            const values=listingTemplateValues(state);
+            check(values.keywords===values.tags,'legacy keyword token aliases tags');
+            check(!buildExportSummary({...state,keywords:'old separate phrases',hashtags:tags.join(', ')}).includes('Keywords:'),'summary only tags');
         """)
 
     def test_related_seo_expands_beyond_title_with_distinct_tags(self):

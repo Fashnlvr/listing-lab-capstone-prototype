@@ -1881,6 +1881,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
 
 .saved-template-list {
   display: flex;
+  align-items: stretch;
   gap: 0.9rem;
   overflow-x: auto;
   overflow-y: hidden;
@@ -1893,7 +1894,7 @@ body.home-page .home-tool-card p:not(.fw-semibold):not(.small.text-secondary) {
   display: flex;
   flex-direction: column;
   flex: 0 0 min(88vw, 21rem);
-  height: 100%;
+  height: auto;
   padding: 1rem 1.05rem;
   border: 1px solid var(--ll-line);
   border-radius: 18px;

@@ -72,13 +72,13 @@
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
               <div>
                 <h2 class="h5 mb-1">Saved Templates</h2>
-                <p class="text-secondary mb-0">Choose a saved template or start a new one.</p>
+                <p class="text-secondary mb-0">Core templates are ready to use. Duplicate one to customize it, or create your own.</p>
               </div>
               <button class="btn btn-dark" id="createTemplateBtn" type="button">New Template</button>
             </div>
             <div class="templates-library-note mb-3">
               <p class="preview-section-label mb-1">Use in Create Listing</p>
-              <p class="text-secondary mb-0">Templates saved here appear in Create Listing automatically. Choose a template from the Templates menu there when you want faster copy and a more consistent listing setup.</p>
+              <p class="text-secondary mb-0">Built-in and custom templates are available in Create Listing. Core templates stay fixed; your own templates can be edited or removed.</p>
             </div>
             <div class="templates-sku-card mb-3">
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
@@ -117,7 +117,7 @@
               <div class="template-output-card__header">
                 <div>
                   <h2 class="h5 mb-1">Build Template</h2>
-                  <p class="small text-secondary mb-0">Use {{description}}, {{keywords}}, {{tags}}, or item fields such as {{brand}}, {{productType}}, {{styleModel}}, {{color}}, {{size}} and {{material}}. Applied templates follow item changes.</p>
+                  <p class="small text-secondary mb-0">Use {{description}}, {{tags}}, or item fields such as {{brand}}, {{productType}}, {{styleModel}}, {{color}}, {{size}} and {{material}}. Applied templates follow item changes.</p>
                 </div>
               </div>
               <div class="row g-3">
@@ -135,9 +135,7 @@ Add any reusable buyer information below."></textarea>
                   <textarea class="form-control" id="libraryTemplateShippingNotes" rows="3" placeholder="Your actual handling time and packaging policy for {{productType}}."></textarea>
                 </div>
                 <div class="col-12">
-                  <label class="form-label" for="libraryTemplateKeywords">Keywords</label>
-                  <input class="form-control" id="libraryTemplateKeywords" placeholder="{{brand}} {{productType}}, {{material}} {{productType}}" />
-                        <label class="form-label mt-2" for="libraryTemplateTags">Tags</label>
+                        <label class="form-label" for="libraryTemplateTags">Tags</label>
                         <input class="form-control" id="libraryTemplateTags" placeholder="{{styleModel}}, {{material}}, {{keyFeatures}}" />
                 </div>
                 <div class="col-12 col-lg-6">
@@ -188,7 +186,7 @@ Add any reusable buyer information below."></textarea>
                 </article>
                 <article class="templates-preview-section">
                   <div class="template-output-card__header">
-                    <p class="preview-section-label mb-0">Keywords</p>
+                    <p class="preview-section-label mb-0">Tags</p>
                     <button class="btn btn-outline-secondary btn-sm template-preview-copy-btn" type="button" data-copy-target="templatePreviewKeywords">Copy</button>
                   </div>
                   <pre id="templatePreviewKeywords" class="template-output-block mb-0"></pre>
@@ -286,6 +284,6 @@ Add any reusable buyer information below."></textarea>
     crossorigin="anonymous"
   ></script>
   <script src="config.js"></script>
-  <script src="script.js?v=20261029-description-polish"></script>
+  <script src="script.js?v=20261029-tags-only"></script>
 </body>
 </html>
